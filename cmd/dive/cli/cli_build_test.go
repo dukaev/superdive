@@ -86,6 +86,9 @@ func Test_BuildFailure(t *testing.T) {
 		// replace anything starting with "docker-desktop://", like "docker-desktop://dashboard/build/desktop-linux/desktop-linux/ujdmhgkwo0sqqpopsnum3xakd"
 		combined = regexp.MustCompile("docker-desktop://[^ ]+").ReplaceAllString(combined, "docker-desktop://<redacted>")
 
+		// replace the docker instance name (e.g., "desktop-linux", "orbstack") to avoid environment-specific differences
+		combined = regexp.MustCompile(`building with "([^"]+)" instance`).ReplaceAllString(combined, `building with "<instance>" instance`)
+
 		snaps.MatchSnapshot(t, combined)
 	})
 }

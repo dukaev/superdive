@@ -23,15 +23,15 @@ FAIL [pass:1 fail:1 skip:1]
 ---
 
 [Test_CI_DefaultCIConfig - 1]
-[0001]  INFO dive version: testing
-[0001] DEBUG config:
+[0000] INFO dive version: testing
+[0000] DEBUG config:
 [35m  log:
       quiet: false
       level: debug
       file: ""
   dev:
       profile: none
-  image: /Users/wagoodman/code/dive/.data/test-docker-image.tar
+  image: <path>
   container-engine: docker
   ignore-errors: false
   ci: false
@@ -72,7 +72,7 @@ FAIL [pass:1 fail:1 skip:1]
       show-attributes: true
   layer:
       show-aggregated-changes: false[0m
-[0001]  INFO fetching image=/Users/wagoodman/code/dive/.data/test-docker-image.tar
-[0001] DEBUG └── resolver: docker-engine
+[0000] INFO fetching image=<path>
+[0000] DEBUG └── resolver: docker-engine
 
 ---

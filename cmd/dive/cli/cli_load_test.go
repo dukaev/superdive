@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"os"
 	"os/exec"
+	"regexp"
 	"testing"
 )
 
@@ -67,6 +68,11 @@ func assertLoadOutput(t testing.TB, combined string) {
 	assert.Contains(t, combined, "Loading image")
 	assert.Contains(t, combined, "Analyzing image")
 	assert.Contains(t, combined, "Evaluating image")
+
+	// replace user-specific paths to avoid environment-specific differences
+	// mask the user-specific portion of the path, keeping only the filename
+	combined = regexp.MustCompile(`Loading image\s+/Users/.+/`).ReplaceAllString(combined, `Loading image                 <path>/`)
+
 	snaps.MatchSnapshot(t, combined)
 }
 
