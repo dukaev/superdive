@@ -30,24 +30,30 @@ type FileNode struct {
 	Name     string
 	Data     NodeData
 	Children map[string]*FileNode
-	path     string
+	path     string // OPTIMIZATION: Cached path (computed once, reused many times in CI mode)
 }
 
 // NewNode creates a new FileNode relative to the given parent node with a payload.
-func NewNode(parent *FileNode, name string, data FileInfo) (node *FileNode) {
-	node = new(FileNode)
-	node.Name = name
-	node.Data = *NewNodeData()
-	node.Data.FileInfo = *data.Copy()
-	node.Size = -1 // signal lazy load later
-
-	node.Children = make(map[string]*FileNode)
-	node.Parent = parent
+// OPTIMIZATION: Uses struct literal and does NOT allocate Children map (lazy initialization).
+func NewNode(parent *FileNode, name string, data FileInfo) *FileNode {
+	var tree *FileTree
 	if parent != nil {
-		node.Tree = parent.Tree
+		tree = parent.Tree
 	}
 
-	return node
+	// Create object with struct literal to avoid extra allocations and assignments
+	return &FileNode{
+		Tree:   tree,
+		Parent: parent,
+		Size:   -1, // signal lazy load later
+		Name:   name,
+		// Initialize Data directly, avoiding NewNodeData() call and extra struct copying
+		Data: NodeData{
+			FileInfo: *data.Copy(),
+			// DiffType defaults to Unmodified (0), explicit initialization not needed
+		},
+		// Children: nil, // Explicitly leave nil for memory savings (lazy initialization)
+	}
 }
 
 // renderTreeLine returns a string representing this FileNode in the context of a greater ASCII tree.
@@ -75,32 +81,47 @@ func (node *FileNode) renderTreeLine(spaces []bool, last bool, collapsed bool) s
 }
 
 // Copy duplicates the existing node relative to a new parent node.
+// OPTIMIZATION: Pre-allocation of Children map with correct size.
 func (node *FileNode) Copy(parent *FileNode) *FileNode {
 	newNode := NewNode(parent, node.Name, node.Data.FileInfo)
 	newNode.Data.ViewInfo = node.Data.ViewInfo
 	newNode.Data.DiffType = node.Data.DiffType
-	for name, child := range node.Children {
-		newNode.Children[name] = child.Copy(newNode)
-		child.Parent = newNode
+
+	// If source node has children, initialize map with correct capacity upfront
+	if len(node.Children) > 0 {
+		newNode.Children = make(map[string]*FileNode, len(node.Children))
+		for name, child := range node.Children {
+			// Recursively copy children
+			newNode.Children[name] = child.Copy(newNode)
+		}
 	}
 	return newNode
 }
 
 // AddChild creates a new node relative to the current FileNode.
-func (node *FileNode) AddChild(name string, data FileInfo) (child *FileNode) {
+// OPTIMIZATION: Lazy initialization of Children map only when needed.
+func (node *FileNode) AddChild(name string, data FileInfo) *FileNode {
 	// never allow processing of purely whiteout flag files (for now)
 	if strings.HasPrefix(name, doubleWhiteoutPrefix) {
 		return nil
 	}
 
-	child = NewNode(node, name, data)
-	if node.Children[name] != nil {
-		// tree node already exists, replace the payload, keep the children
-		node.Children[name].Data.FileInfo = *data.Copy()
-	} else {
-		node.Children[name] = child
-		node.Tree.Size++
+	// 1. Lazy initialization: create map only when first child is added
+	if node.Children == nil {
+		node.Children = make(map[string]*FileNode)
 	}
+
+	// 2. Use "ok" idiom for existence check (faster and safer)
+	if existingNode, ok := node.Children[name]; ok {
+		// Node already exists, just update the data
+		existingNode.Data.FileInfo = *data.Copy()
+		return existingNode // Return existing node to avoid duplicates
+	}
+
+	// 3. Create new node and add to tree
+	child := NewNode(node, name, data)
+	node.Children[name] = child
+	node.Tree.Size++
 
 	return child
 }
@@ -268,31 +289,41 @@ func (node *FileNode) IsWhiteout() bool {
 
 // IsLeaf returns true is the current node has no child nodes.
 func (node *FileNode) IsLeaf() bool {
-	return len(node.Children) == 0
+	// Map is nil or empty - this is a leaf node
+	return node.Children == nil || len(node.Children) == 0
 }
 
 // Path returns a slash-delimited string from the root of the greater tree to the current node (e.g. /a/path/to/here)
+// OPTIMIZATION: Uses caching with lazy evaluation.
+// Path is computed once and cached, then reused for subsequent calls.
+// This is beneficial for CI mode where Path() is called frequently during comparison.
 func (node *FileNode) Path() string {
 	if node.path == "" {
-		var path []string
-		curNode := node
-		for {
-			if curNode.Parent == nil {
-				break
-			}
+		// Pre-allocate slice for path segments (capacity 10 covers most cases)
+		segments := make([]string, 0, 10)
 
+		// Walk up the tree collecting names
+		curNode := node
+		for curNode.Parent != nil {
 			name := curNode.Name
 			if curNode == node {
 				// white out prefixes are fictitious on leaf nodes
 				name = strings.TrimPrefix(name, whiteoutPrefix)
 			}
-
-			path = append([]string{name}, path...)
+			// Append in reverse order (will reverse later)
+			segments = append(segments, name)
 			curNode = curNode.Parent
 		}
-		node.path = "/" + strings.Join(path, "/")
+
+		// Reverse the slice (O(n) but very cheap)
+		for i, j := 0, len(segments)-1; i < j; i, j = i+1, j-1 {
+			segments[i], segments[j] = segments[j], segments[i]
+		}
+
+		// Build and cache final path string
+		node.path = "/" + strings.Join(segments, "/")
 	}
-	return strings.Replace(node.path, "//", "/", -1)
+	return node.path
 }
 
 // deriveDiffType determines a DiffType to the current FileNode. Note: the DiffType of a node is always the DiffType of
