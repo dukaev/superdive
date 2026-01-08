@@ -166,3 +166,421 @@ func TestDirSize(t *testing.T) {
 		t.Errorf("Expected metadata '%s' got '%s'", expected, actual)
 	}
 }
+
+func TestFileNode_compare(t *testing.T) {
+	t.Run("both nil returns Unmodified", func(t *testing.T) {
+		// Need to call compare on nil receiver
+		var node *FileNode
+		result := node.compare(nil)
+		if result != Unmodified {
+			t.Errorf("Expected Unmodified but got %v", result)
+		}
+	})
+
+	t.Run("non-nil node and nil other returns Removed", func(t *testing.T) {
+		tree := NewFileTree()
+		tree.Root.Name = "test"
+
+		result := tree.Root.compare(nil)
+		if result != Removed {
+			t.Errorf("Expected Removed but got %v", result)
+		}
+	})
+
+	t.Run("whiteout file returns Removed", func(t *testing.T) {
+		tree := NewFileTree()
+		node, _, _ := tree.AddPath("/file.txt", FileInfo{
+			Path:     "/file.txt",
+			TypeFlag: 1,
+			hash:     123,
+		})
+
+		whiteoutNode := &FileNode{
+			Name: ".wh.file.txt",
+			Data: NodeData{
+				FileInfo: FileInfo{
+					Path:     "/.wh.file.txt",
+					TypeFlag: 1,
+				},
+			},
+		}
+
+		result := node.compare(whiteoutNode)
+		if result != Removed {
+			t.Errorf("Expected Removed for whiteout but got %v", result)
+		}
+	})
+
+	t.Run("mismatched node names panic", func(t *testing.T) {
+		tree := NewFileTree()
+		node, _, _ := tree.AddPath("/file1.txt", FileInfo{
+			Path:     "/file1.txt",
+			TypeFlag: 1,
+			hash:     123,
+		})
+
+		other := &FileNode{
+			Name: "file2.txt",
+			Data: NodeData{
+				FileInfo: FileInfo{
+					Path:     "/file2.txt",
+					TypeFlag: 1,
+					hash:     123,
+				},
+			},
+		}
+
+		defer func() {
+			if r := recover(); r == nil {
+				t.Errorf("Expected panic when comparing mismatched nodes")
+			}
+		}()
+
+		node.compare(other)
+	})
+
+	t.Run("same nodes return Unmodified", func(t *testing.T) {
+		tree := NewFileTree()
+		node, _, _ := tree.AddPath("/file.txt", FileInfo{
+			Path:     "/file.txt",
+			TypeFlag: 1,
+			hash:     123,
+			Mode:     0644,
+			Uid:      1000,
+			Gid:      1000,
+		})
+
+		other := &FileNode{
+			Tree: tree,
+			Name: "file.txt",
+			Data: NodeData{
+				FileInfo: FileInfo{
+					Path:     "/file.txt",
+					TypeFlag: 1,
+					hash:     123,
+					Mode:     0644,
+					Uid:      1000,
+					Gid:      1000,
+				},
+			},
+		}
+
+		result := node.compare(other)
+		if result != Unmodified {
+			t.Errorf("Expected Unmodified but got %v", result)
+		}
+	})
+
+	t.Run("different hash returns Modified", func(t *testing.T) {
+		tree := NewFileTree()
+		node, _, _ := tree.AddPath("/file.txt", FileInfo{
+			Path:     "/file.txt",
+			TypeFlag: 1,
+			hash:     123,
+		})
+
+		other := &FileNode{
+			Tree: tree,
+			Name: "file.txt",
+			Data: NodeData{
+				FileInfo: FileInfo{
+					Path:     "/file.txt",
+					TypeFlag: 1,
+					hash:     456,
+				},
+			},
+		}
+
+		result := node.compare(other)
+		if result != Modified {
+			t.Errorf("Expected Modified but got %v", result)
+		}
+	})
+}
+
+func TestFileNode_AddChild_EdgeCases(t *testing.T) {
+	t.Run("add child with existing name", func(t *testing.T) {
+		tree := NewFileTree()
+		payload1 := FileInfo{Path: "/file1"}
+		payload2 := FileInfo{Path: "/file2"}
+
+		node1 := tree.Root.AddChild("test", payload1)
+		node2 := tree.Root.AddChild("test", payload2)
+
+		// Should add a new child even with same name
+		if node1 == nil || node2 == nil {
+			t.Errorf("Expected both nodes to be created")
+		}
+
+		if tree.Root.Children["test"] == nil {
+			t.Errorf("Expected child to exist in tree")
+		}
+	})
+
+	t.Run("add child to nested node", func(t *testing.T) {
+		tree := NewFileTree()
+		parent := tree.Root.AddChild("parent", FileInfo{})
+		child := parent.AddChild("child", FileInfo{Path: "/parent/child"})
+
+		if child == nil {
+			t.Errorf("Expected child to be created")
+		}
+
+		if len(parent.Children) != 1 {
+			t.Errorf("Expected parent to have 1 child, got %d", len(parent.Children))
+		}
+	})
+}
+
+func TestFileNode_Remove_EdgeCases(t *testing.T) {
+	t.Run("remove node with children", func(t *testing.T) {
+		tree := NewFileTree()
+		parent := tree.Root.AddChild("parent", FileInfo{})
+		parent.AddChild("child1", FileInfo{})
+		parent.AddChild("child2", FileInfo{})
+
+		initialSize := tree.Size
+		err := parent.Remove()
+		checkError(t, err, "unable to remove node")
+
+		if tree.Size >= initialSize {
+			t.Errorf("Expected tree size to decrease after removal")
+		}
+	})
+
+	t.Run("remove root node", func(t *testing.T) {
+		tree := NewFileTree()
+		tree.Root.AddChild("child1", FileInfo{})
+		tree.Root.AddChild("child2", FileInfo{})
+
+		err := tree.Root.Remove()
+		// Root removal should fail
+		if err == nil {
+			t.Errorf("Expected error when removing root node")
+		}
+		if err != nil && err.Error() != "cannot remove the tree root" {
+			t.Errorf("Expected 'cannot remove the tree root' error, got: %v", err)
+		}
+	})
+}
+
+func TestFileNode_String(t *testing.T) {
+	t.Run("string representation", func(t *testing.T) {
+		tree := NewFileTree()
+		node, _, _ := tree.AddPath("/test.txt", FileInfo{
+			Path:     "/test.txt",
+			TypeFlag: 1,
+			Mode:     0644,
+			Uid:      1000,
+			Gid:      1000,
+		})
+		node.Data.DiffType = Modified
+
+		str := node.String()
+		if str == "" {
+			t.Errorf("Expected non-empty string representation")
+		}
+	})
+
+	t.Run("string representation for directory", func(t *testing.T) {
+		tree := NewFileTree()
+		node, _, _ := tree.AddPath("/dir", FileInfo{
+			Path:     "/dir",
+			TypeFlag: 1,
+		})
+		node.Data.FileInfo.IsDir = true
+
+		str := node.String()
+		if str == "" {
+			t.Errorf("Expected non-empty string representation for directory")
+		}
+	})
+}
+
+func TestFileNode_MetadataString(t *testing.T) {
+	t.Run("metadata string for regular file", func(t *testing.T) {
+		tree := NewFileTree()
+		node, _, _ := tree.AddPath("/test.txt", FileInfo{
+			Path:     "/test.txt",
+			TypeFlag: 1,
+			Size:     1024,
+			Mode:     0644,
+			Uid:      1000,
+			Gid:      1000,
+		})
+
+		metadata := node.MetadataString()
+		if metadata == "" {
+			t.Errorf("Expected non-empty metadata string")
+		}
+	})
+
+	t.Run("metadata string for directory", func(t *testing.T) {
+		tree := NewFileTree()
+		_, _, err := tree.AddPath("/dir", FileInfo{
+			Path:     "/dir",
+			TypeFlag: 1,
+		})
+		checkError(t, err, "unable to setup test")
+
+		node, _ := tree.GetNode("/dir")
+		node.Data.FileInfo.IsDir = true
+
+		metadata := node.MetadataString()
+		if metadata == "" {
+			t.Errorf("Expected non-empty metadata string for directory")
+		}
+	})
+}
+
+func TestFileNode_GetSize(t *testing.T) {
+	t.Run("get size for regular file", func(t *testing.T) {
+		tree := NewFileTree()
+		node, _, _ := tree.AddPath("/file.txt", FileInfo{
+			Path:     "/file.txt",
+			TypeFlag: 1,
+			Size:     2048,
+		})
+
+		size := node.GetSize()
+		if size != 2048 {
+			t.Errorf("Expected size 2048, got %d", size)
+		}
+	})
+
+	t.Run("get size for directory with children", func(t *testing.T) {
+		tree := NewFileTree()
+		_, _, err := tree.AddPath("/dir", FileInfo{
+			Path:     "/dir",
+			TypeFlag: 1,
+		})
+		checkError(t, err, "unable to setup test")
+
+		node, _ := tree.GetNode("/dir")
+		node.Data.FileInfo.IsDir = true
+
+		tree.AddPath("/dir/file1.txt", FileInfo{Size: 100})
+		tree.AddPath("/dir/file2.txt", FileInfo{Size: 200})
+
+		size := node.GetSize()
+		if size != 300 {
+			t.Errorf("Expected total size 300, got %d", size)
+		}
+	})
+
+	t.Run("get size for empty directory", func(t *testing.T) {
+		tree := NewFileTree()
+		_, _, err := tree.AddPath("/dir", FileInfo{
+			Path:     "/dir",
+			TypeFlag: 1,
+		})
+		checkError(t, err, "unable to setup test")
+
+		node, _ := tree.GetNode("/dir")
+		node.Data.FileInfo.IsDir = true
+
+		size := node.GetSize()
+		if size != 0 {
+			t.Errorf("Expected size 0 for empty directory, got %d", size)
+		}
+	})
+}
+
+func TestFileNode_VisitDepthChildFirst(t *testing.T) {
+	t.Run("visit tree child first", func(t *testing.T) {
+		tree := NewFileTree()
+		tree.AddPath("/dir", FileInfo{})
+		tree.AddPath("/dir/file1.txt", FileInfo{})
+		tree.AddPath("/dir/file2.txt", FileInfo{})
+
+		node, _ := tree.GetNode("/dir")
+
+		var visited []string
+		visitor := func(n *FileNode) error {
+			visited = append(visited, n.Path())
+			return nil
+		}
+		evaluator := func(n *FileNode) bool {
+			return true
+		}
+		sorter := GetSortOrderStrategy(ByName)
+
+		err := node.VisitDepthChildFirst(visitor, evaluator, sorter)
+		checkError(t, err, "unable to visit tree")
+
+		if len(visited) == 0 {
+			t.Errorf("Expected nodes to be visited")
+		}
+	})
+}
+
+func TestFileNode_VisitDepthParentFirst(t *testing.T) {
+	t.Run("visit tree parent first", func(t *testing.T) {
+		tree := NewFileTree()
+		tree.AddPath("/dir", FileInfo{})
+		tree.AddPath("/dir/file1.txt", FileInfo{})
+		tree.AddPath("/dir/file2.txt", FileInfo{})
+
+		node, _ := tree.GetNode("/dir")
+
+		var visited []string
+		visitor := func(n *FileNode) error {
+			visited = append(visited, n.Path())
+			return nil
+		}
+		evaluator := func(n *FileNode) bool {
+			return true
+		}
+		sorter := GetSortOrderStrategy(ByName)
+
+		err := node.VisitDepthParentFirst(visitor, evaluator, sorter)
+		checkError(t, err, "unable to visit tree")
+
+		if len(visited) == 0 {
+			t.Errorf("Expected nodes to be visited")
+		}
+	})
+}
+
+func TestFileNode_AssignDiffType(t *testing.T) {
+	t.Run("assign diff type to node and children", func(t *testing.T) {
+		tree := NewFileTree()
+		tree.AddPath("/dir", FileInfo{})
+		tree.AddPath("/dir/file1.txt", FileInfo{})
+		tree.AddPath("/dir/file2.txt", FileInfo{})
+
+		node, _ := tree.GetNode("/dir")
+
+		err := node.AssignDiffType(Added)
+		checkError(t, err, "unable to assign diff type")
+
+		// Check that the node and its children have the correct diff type
+		if node.Data.DiffType != Added {
+			t.Errorf("Expected node diff type to be Added, got %v", node.Data.DiffType)
+		}
+	})
+}
+
+func TestFileNode_IsLeaf(t *testing.T) {
+	t.Run("leaf node has no children", func(t *testing.T) {
+		tree := NewFileTree()
+		node, _, _ := tree.AddPath("/file.txt", FileInfo{})
+
+		if !node.IsLeaf() {
+			t.Errorf("Expected file node to be a leaf")
+		}
+	})
+
+	t.Run("directory node is not a leaf", func(t *testing.T) {
+		tree := NewFileTree()
+		tree.AddPath("/dir", FileInfo{})
+		tree.AddPath("/dir/file.txt", FileInfo{})
+
+		node, _ := tree.GetNode("/dir")
+
+		if node.IsLeaf() {
+			t.Errorf("Expected directory node to not be a leaf")
+		}
+	})
+}
+
