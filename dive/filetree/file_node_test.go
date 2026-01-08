@@ -1,6 +1,7 @@
 package filetree
 
 import (
+	"archive/tar"
 	"testing"
 )
 
@@ -388,7 +389,7 @@ func TestFileNode_String(t *testing.T) {
 			Path:     "/dir",
 			TypeFlag: 1,
 		})
-		node.Data.FileInfo.IsDir = true
+		node.Data.FileInfo.TypeFlag = tar.TypeDir
 
 		str := node.String()
 		if str == "" {
@@ -424,7 +425,7 @@ func TestFileNode_MetadataString(t *testing.T) {
 		checkError(t, err, "unable to setup test")
 
 		node, _ := tree.GetNode("/dir")
-		node.Data.FileInfo.IsDir = true
+		node.Data.FileInfo.TypeFlag = tar.TypeDir
 
 		metadata := node.MetadataString()
 		if metadata == "" {
@@ -457,7 +458,7 @@ func TestFileNode_GetSize(t *testing.T) {
 		checkError(t, err, "unable to setup test")
 
 		node, _ := tree.GetNode("/dir")
-		node.Data.FileInfo.IsDir = true
+		node.Data.FileInfo.TypeFlag = tar.TypeDir
 
 		tree.AddPath("/dir/file1.txt", FileInfo{Size: 100})
 		tree.AddPath("/dir/file2.txt", FileInfo{Size: 200})
@@ -477,7 +478,7 @@ func TestFileNode_GetSize(t *testing.T) {
 		checkError(t, err, "unable to setup test")
 
 		node, _ := tree.GetNode("/dir")
-		node.Data.FileInfo.IsDir = true
+		node.Data.FileInfo.TypeFlag = tar.TypeDir
 
 		size := node.GetSize()
 		if size != 0 {

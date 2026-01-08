@@ -1,6 +1,7 @@
 package filetree
 
 import (
+	"archive/tar"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -864,7 +865,7 @@ func TestVisibleSize(t *testing.T) {
 				Size:     100,
 			}
 			if path == "/dir" {
-				fakeData.IsDir = true
+				fakeData.TypeFlag = tar.TypeDir
 			}
 			_, _, err := tree.AddPath(path, fakeData)
 			assert.NoError(t, err)
@@ -886,7 +887,7 @@ func TestVisibleSize(t *testing.T) {
 				hash:     123,
 			}
 			if path == "/dir" {
-				fakeData.IsDir = true
+				fakeData.TypeFlag = tar.TypeDir
 			}
 			node, _, err := tree.AddPath(path, fakeData)
 			assert.NoError(t, err)
@@ -913,7 +914,7 @@ func TestVisibleSize(t *testing.T) {
 				hash:     123,
 			}
 			if path == "/dir" {
-				fakeData.IsDir = true
+				fakeData.TypeFlag = tar.TypeDir
 			}
 			node, _, err := tree.AddPath(path, fakeData)
 			assert.NoError(t, err)
@@ -940,7 +941,7 @@ func TestVisibleSize(t *testing.T) {
 				hash:     123,
 			}
 			if path == "/dir" {
-				fakeData.IsDir = true
+				fakeData.TypeFlag = tar.TypeDir
 			}
 			node, _, err := tree.AddPath(path, fakeData)
 			assert.NoError(t, err)
@@ -974,7 +975,7 @@ func TestVisibleSize(t *testing.T) {
 				hash:     123,
 			}
 			if path == "/dir1" || path == "/dir2" {
-				fakeData.IsDir = true
+				fakeData.TypeFlag = tar.TypeDir
 			}
 			node, _, err := tree.AddPath(path, fakeData)
 			assert.NoError(t, err)
@@ -1008,7 +1009,7 @@ func TestVisitDepthParentFirst(t *testing.T) {
 				hash:     123,
 			}
 			if path == "/dir" {
-				fakeData.IsDir = true
+				fakeData.TypeFlag = tar.TypeDir
 			}
 			_, _, err := tree.AddPath(path, fakeData)
 			assert.NoError(t, err)
@@ -1057,7 +1058,7 @@ func TestVisitDepthParentFirst(t *testing.T) {
 				hash:     123,
 			}
 			if path == "/dir" {
-				fakeData.IsDir = true
+				fakeData.TypeFlag = tar.TypeDir
 			}
 			_, _, err := tree.AddPath(path, fakeData)
 			assert.NoError(t, err)
@@ -1112,7 +1113,7 @@ func TestVisitDepthParentFirst(t *testing.T) {
 				hash:     123,
 			}
 			if path == "/dir" {
-				fakeData.IsDir = true
+				fakeData.TypeFlag = tar.TypeDir
 			}
 			_, _, err := tree.AddPath(path, fakeData)
 			assert.NoError(t, err)

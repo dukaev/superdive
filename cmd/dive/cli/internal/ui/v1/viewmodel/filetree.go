@@ -224,7 +224,7 @@ func (vm *FileTreeViewModel) CursorRight(filterRegex *regexp.Regexp) error {
 		return nil
 	}
 
-	if !node.Data.FileInfo.IsDir {
+	if !node.Data.FileInfo.IsDir() {
 		return nil
 	}
 
@@ -338,7 +338,7 @@ func (vm *FileTreeViewModel) getAbsPositionNode(filterRegex *regexp.Regexp) (nod
 // ToggleCollapse will collapse/expand the selected FileNode.
 func (vm *FileTreeViewModel) ToggleCollapse(filterRegex *regexp.Regexp) error {
 	node := vm.getAbsPositionNode(filterRegex)
-	if node != nil && node.Data.FileInfo.IsDir {
+	if node != nil && node.Data.FileInfo.IsDir() {
 		node.Data.ViewInfo.Collapsed = !node.Data.ViewInfo.Collapsed
 	}
 	return nil
@@ -354,7 +354,7 @@ func (vm *FileTreeViewModel) ToggleCollapseAll() error {
 	}
 
 	evaluator := func(curNode *filetree.FileNode) bool {
-		return curNode.Data.FileInfo.IsDir
+		return curNode.Data.FileInfo.IsDir()
 	}
 
 	err := vm.ModelTree.VisitDepthChildFirst(visitor, evaluator)

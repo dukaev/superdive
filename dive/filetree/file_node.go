@@ -42,6 +42,7 @@ func NewNode(parent *FileNode, name string, data FileInfo) *FileNode {
 	}
 
 	// Create object with struct literal to avoid extra allocations and assignments
+	// OPTIMIZATION: Don't call data.Copy() - FileInfo is already copied by value
 	return &FileNode{
 		Tree:   tree,
 		Parent: parent,
@@ -49,7 +50,7 @@ func NewNode(parent *FileNode, name string, data FileInfo) *FileNode {
 		Name:   name,
 		// Initialize Data directly, avoiding NewNodeData() call and extra struct copying
 		Data: NodeData{
-			FileInfo: *data.Copy(),
+			FileInfo: data,
 			// DiffType defaults to Unmodified (0), explicit initialization not needed
 		},
 		// Children: nil, // Explicitly leave nil for memory savings (lazy initialization)
@@ -114,7 +115,8 @@ func (node *FileNode) AddChild(name string, data FileInfo) *FileNode {
 	// 2. Use "ok" idiom for existence check (faster and safer)
 	if existingNode, ok := node.Children[name]; ok {
 		// Node already exists, just update the data
-		existingNode.Data.FileInfo = *data.Copy()
+		// OPTIMIZATION: Don't copy, just assign the value
+		existingNode.Data.FileInfo = data
 		return existingNode // Return existing node to avoid duplicates
 	}
 
@@ -163,7 +165,7 @@ func (node *FileNode) MetadataString() string {
 	}
 
 	dir := "-"
-	if node.Data.FileInfo.IsDir {
+	if node.Data.FileInfo.IsDir() {
 		dir = "d"
 	}
 
@@ -323,7 +325,7 @@ func (node *FileNode) Path() string {
 		// Build and cache final path string
 		node.path = "/" + strings.Join(segments, "/")
 	}
-	return node.path
+	return strings.ReplaceAll(node.path, "//", "/")
 }
 
 // deriveDiffType determines a DiffType to the current FileNode. Note: the DiffType of a node is always the DiffType of

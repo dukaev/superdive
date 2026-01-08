@@ -35,9 +35,9 @@ func TestNewFileInfoFromTarHeader(t *testing.T) {
 		assert.Equal(t, "test.txt", result.Path)
 		assert.Equal(t, byte(tar.TypeReg), result.TypeFlag)
 		assert.Equal(t, int64(1024), result.Size)
-		assert.Equal(t, 1000, result.Uid)
-		assert.Equal(t, 1000, result.Gid)
-		assert.False(t, result.IsDir)
+		assert.Equal(t, uint32(1000), result.Uid)
+		assert.Equal(t, uint32(1000), result.Gid)
+		assert.False(t, result.IsDir())
 		assert.NotEqual(t, uint64(0), result.hash) // hash should be computed
 		// Don't check Mode as it can be platform-dependent
 	})
@@ -58,7 +58,7 @@ func TestNewFileInfoFromTarHeader(t *testing.T) {
 		assert.Equal(t, "testdir", result.Path)
 		assert.Equal(t, byte(tar.TypeDir), result.TypeFlag)
 		assert.Equal(t, int64(0), result.Size)
-		assert.True(t, result.IsDir)
+		assert.True(t, result.IsDir())
 		assert.Equal(t, uint64(0), result.hash) // directories have no hash
 	})
 
@@ -77,7 +77,7 @@ func TestNewFileInfoFromTarHeader(t *testing.T) {
 		assert.Equal(t, "link.txt", result.Path)
 		assert.Equal(t, byte(tar.TypeSymlink), result.TypeFlag)
 		assert.Equal(t, "target.txt", result.Linkname)
-		assert.False(t, result.IsDir)
+		assert.False(t, result.IsDir())
 		// Note: current implementation computes hash for symlinks (it should only skip dirs)
 		// The hash will be the xxhash of empty content since reader is empty
 		assert.NotEqual(t, uint64(0), result.hash)
@@ -112,7 +112,6 @@ func TestFileInfo_Copy(t *testing.T) {
 			Mode:     0644,
 			Uid:      1000,
 			Gid:      1000,
-			IsDir:    false,
 		}
 
 		copied := original.Copy()
@@ -126,7 +125,7 @@ func TestFileInfo_Copy(t *testing.T) {
 		assert.Equal(t, original.Mode, copied.Mode)
 		assert.Equal(t, original.Uid, copied.Uid)
 		assert.Equal(t, original.Gid, copied.Gid)
-		assert.Equal(t, original.IsDir, copied.IsDir)
+		assert.Equal(t, original.IsDir(), copied.IsDir())
 
 		// Verify it's a different instance
 		assert.NotSame(t, &original, copied)
@@ -143,7 +142,6 @@ func TestFileInfo_Copy(t *testing.T) {
 		original := FileInfo{
 			Path:     "/test/dir",
 			TypeFlag: byte(tar.TypeDir),
-			IsDir:    true,
 			Size:     0,
 		}
 
@@ -151,7 +149,7 @@ func TestFileInfo_Copy(t *testing.T) {
 
 		assert.NotNil(t, copied)
 		assert.Equal(t, original.Path, copied.Path)
-		assert.True(t, copied.IsDir)
+		assert.True(t, copied.IsDir())
 	})
 
 	t.Run("modifying copy doesn't affect original", func(t *testing.T) {
@@ -282,26 +280,30 @@ func TestFileInfo_Compare(t *testing.T) {
 func TestGetHashFromReader(t *testing.T) {
 	t.Run("hash of empty reader", func(t *testing.T) {
 		reader := bytes.NewReader([]byte{})
-		hash := getHashFromReader(reader)
+		hash, err := getHashFromReader(reader)
 
+		assert.NoError(t, err)
 		assert.Equal(t, uint64(17241709254077376921), hash) // xxhash of empty string
 	})
 
 	t.Run("hash of simple string", func(t *testing.T) {
 		reader := bytes.NewReader([]byte("hello world"))
-		hash := getHashFromReader(reader)
+		hash, err := getHashFromReader(reader)
 
+		assert.NoError(t, err)
 		assert.NotEqual(t, uint64(0), hash)
 		// Verify consistency
-		hash2 := getHashFromReader(bytes.NewReader([]byte("hello world")))
+		hash2, err2 := getHashFromReader(bytes.NewReader([]byte("hello world")))
+		assert.NoError(t, err2)
 		assert.Equal(t, hash, hash2)
 	})
 
 	t.Run("hash of binary data", func(t *testing.T) {
 		data := []byte{0x00, 0x01, 0x02, 0x03, 0x04}
 		reader := bytes.NewReader(data)
-		hash := getHashFromReader(reader)
+		hash, err := getHashFromReader(reader)
 
+		assert.NoError(t, err)
 		assert.NotEqual(t, uint64(0), hash)
 	})
 
@@ -312,23 +314,28 @@ func TestGetHashFromReader(t *testing.T) {
 			largeData[i] = byte(i % 256)
 		}
 		reader := bytes.NewReader(largeData)
-		hash := getHashFromReader(reader)
+		hash, err := getHashFromReader(reader)
 
+		assert.NoError(t, err)
 		assert.NotEqual(t, uint64(0), hash)
 	})
 
 	t.Run("different content produces different hash", func(t *testing.T) {
-		hash1 := getHashFromReader(bytes.NewReader([]byte("content1")))
-		hash2 := getHashFromReader(bytes.NewReader([]byte("content2")))
+		hash1, err1 := getHashFromReader(bytes.NewReader([]byte("content1")))
+		hash2, err2 := getHashFromReader(bytes.NewReader([]byte("content2")))
 
+		assert.NoError(t, err1)
+		assert.NoError(t, err2)
 		assert.NotEqual(t, hash1, hash2)
 	})
 
 	t.Run("same content produces same hash", func(t *testing.T) {
 		content := []byte("same content")
-		hash1 := getHashFromReader(bytes.NewReader(content))
-		hash2 := getHashFromReader(bytes.NewReader(content))
+		hash1, err1 := getHashFromReader(bytes.NewReader(content))
+		hash2, err2 := getHashFromReader(bytes.NewReader(content))
 
+		assert.NoError(t, err1)
+		assert.NoError(t, err2)
 		assert.Equal(t, hash1, hash2)
 	})
 }
@@ -349,9 +356,9 @@ func TestNewFileInfo(t *testing.T) {
 		assert.Equal(t, "test.txt", fileInfo.Path)
 		assert.Equal(t, byte(tar.TypeReg), fileInfo.TypeFlag)
 		assert.Equal(t, int64(12), fileInfo.Size) // "test content" is 12 bytes
-		assert.False(t, fileInfo.IsDir)
-		assert.Equal(t, -1, fileInfo.Uid) // UID/GID not supported, set to -1
-		assert.Equal(t, -1, fileInfo.Gid)
+		assert.False(t, fileInfo.IsDir())
+		assert.Equal(t, uint32(0), fileInfo.Uid) // UID/GID not supported, set to 0
+		assert.Equal(t, uint32(0), fileInfo.Gid)
 		assert.NotEqual(t, uint64(0), fileInfo.hash) // hash should be computed
 		// Mode may have additional bits set on different systems, just check it's not zero
 		assert.NotEqual(t, os.FileMode(0), fileInfo.Mode)
@@ -370,7 +377,7 @@ func TestNewFileInfo(t *testing.T) {
 
 		assert.Equal(t, "testdir", fileInfo.Path)
 		assert.Equal(t, byte(tar.TypeDir), fileInfo.TypeFlag)
-		assert.True(t, fileInfo.IsDir)
+		assert.True(t, fileInfo.IsDir())
 		assert.Equal(t, uint64(0), fileInfo.hash) // directories have no hash
 		// Check that directory mode has dir bit set
 		assert.True(t, fileInfo.Mode&os.ModeDir != 0)
@@ -394,7 +401,7 @@ func TestNewFileInfo(t *testing.T) {
 		assert.Equal(t, "link.txt", fileInfo.Path)
 		assert.Equal(t, byte(tar.TypeSymlink), fileInfo.TypeFlag)
 		assert.Equal(t, "target.txt", fileInfo.Linkname)
-		assert.False(t, fileInfo.IsDir)
+		assert.False(t, fileInfo.IsDir())
 		// Note: current implementation computes hash for symlinks (from the target file content)
 		assert.NotEqual(t, uint64(0), fileInfo.hash)
 	})

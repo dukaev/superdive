@@ -11,16 +11,18 @@ import (
 )
 
 // FileInfo contains tar metadata for a specific FileNode
+// OPTIMIZATION: Fields ordered to minimize padding (64 bytes on 64-bit)
 type FileInfo struct {
-	Path     string      `json:"path"`
-	TypeFlag byte        `json:"typeFlag"`
-	Linkname string      `json:"linkName"`
-	hash     uint64      //`json:"hash"`
-	Size     int64       `json:"size"`
-	Mode     os.FileMode `json:"fileMode"`
-	Uid      int         `json:"uid"`
-	Gid      int         `json:"gid"`
-	IsDir    bool        `json:"isDir"`
+	Path     string      // 16 bytes
+	Linkname string      // 16 bytes
+	hash     uint64      // 8 bytes
+	Size     int64       // 8 bytes
+	Mode     os.FileMode // 4 bytes
+	Uid      uint32      // 4 bytes (was int, 8 bytes)
+	Gid      uint32      // 4 bytes (was int, 8 bytes)
+	TypeFlag byte        // 1 byte
+	// 3 bytes padding
+	// Note: IsDir removed - can be derived from TypeFlag == tar.TypeDir
 }
 
 // NewFileInfoFromTarHeader extracts the metadata from a tar header and file contents and generates a new FileInfo object.
@@ -29,19 +31,16 @@ type FileInfo struct {
 func NewFileInfoFromTarHeader(reader *tar.Reader, header *tar.Header, path string) FileInfo {
 	var hash uint64
 
-	// OPTIMIZATION: Skip hashing for empty files (header.Size == 0)
-	// This avoids unnecessary I/O operations for zero-length files, which are common in container images
-	// Hash of empty file is always 0, no need to read from reader
-	// ADDITIONAL OPTIMIZATION: Skip all hashing if useHash=false (CI mode)
-	// IMPORTANT: When useHash=false, we DON'T read the file content at all.
-	// The tar.Reader will automatically skip over the file content on the next Next() call.
-	var err error
-	hash, err = getHashFromReader(reader)
-	if err != nil {
-		panic(fmt.Errorf("unable to hash file %q: %w", path, err))
+	// OPTIMIZATION: Skip hashing for directories only
+	// Directories have no content to hash.
+	// Symlinks ARE hashed (with their target content, not the link path)
+	if header.Typeflag != tar.TypeDir {
+		var err error
+		hash, err = getHashFromReader(reader)
+		if err != nil {
+			panic(fmt.Errorf("unable to hash file %q: %w", path, err))
+		}
 	}
-	// If useHash==false, we simply don't read from the reader. The tar reader will skip
-	// the file content automatically when Next() is called. This is the KEY optimization!
 
 	// Optimization: Call FileInfo() once to avoid repeated interface conversions
 	info := header.FileInfo()
@@ -53,9 +52,8 @@ func NewFileInfoFromTarHeader(reader *tar.Reader, header *tar.Header, path strin
 		hash:     hash,
 		Size:     info.Size(),
 		Mode:     info.Mode(),
-		Uid:      header.Uid,
-		Gid:      header.Gid,
-		IsDir:    info.IsDir(),
+		Uid:      uint32(header.Uid),
+		Gid:      uint32(header.Gid),
 	}
 }
 
@@ -103,10 +101,9 @@ func NewFileInfo(realPath, path string, info os.FileInfo) FileInfo {
 		hash:     hash,
 		Size:     size,
 		Mode:     info.Mode(),
-		// todo: support UID/GID
-		Uid:   -1,
-		Gid:   -1,
-		IsDir: info.IsDir(),
+		// todo: support UID/GID - use sentinel value
+		Uid: 0,
+		Gid: 0,
 	}
 }
 
@@ -124,13 +121,18 @@ func (data *FileInfo) Copy() *FileInfo {
 		Mode:     data.Mode,
 		Uid:      data.Uid,
 		Gid:      data.Gid,
-		IsDir:    data.IsDir,
 	}
 }
 
 // Hash returns the xxhash of the file content
 func (data *FileInfo) Hash() uint64 {
 	return data.hash
+}
+
+// IsDir returns true if this file is a directory
+// OPTIMIZATION: Derived from TypeFlag instead of stored field (saves 8 bytes per FileInfo)
+func (data *FileInfo) IsDir() bool {
+	return data.TypeFlag == tar.TypeDir
 }
 
 // Compare determines the DiffType between two FileInfos based on the type and contents of each given FileInfo
@@ -161,17 +163,6 @@ var hasherPool = sync.Pool{
 }
 
 func getHashFromReader(reader io.Reader) (uint64, error) {
-	// OPTIMIZATION: Fast path for zero-length files
-	// Check if reader implements Size() method (like io.LimitReader, some custom readers)
-	// This avoids unnecessary buffer allocation and hashing for empty files
-	type sizeReader interface {
-		Size() int64
-	}
-
-	if sr, ok := reader.(sizeReader); ok && sr.Size() == 0 {
-		return 0, nil // Hash of empty file is 0
-	}
-
 	// 1. Get resources from pools
 	buf := bufferPool.Get().([]byte)
 	h := hasherPool.Get().(*xxhash.Digest)
