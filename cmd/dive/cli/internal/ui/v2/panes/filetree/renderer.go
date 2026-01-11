@@ -1,4 +1,4 @@
-package app
+package filetree
 
 import (
 	"fmt"
@@ -7,7 +7,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
-	v2styles "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
+
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 	"github.com/wagoodman/dive/dive/filetree"
 )
 
@@ -67,31 +68,31 @@ func renderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, depth in
 	}
 
 	// 2. Icon and color
-	icon := v2styles.IconFile
+	icon := styles.IconFile
 	diffIcon := ""
-	color := v2styles.DiffNormalColor
+	color := styles.DiffNormalColor
 
 	if node.Data.FileInfo.IsDir() {
 		if node.Data.ViewInfo.Collapsed {
-			icon = v2styles.IconDirClosed
+			icon = styles.IconDirClosed
 		} else {
-			icon = v2styles.IconDirOpen
+			icon = styles.IconDirOpen
 		}
 	} else if node.Data.FileInfo.TypeFlag == 16 { // Symlink
-		icon = v2styles.IconSymlink
+		icon = styles.IconSymlink
 	}
 
 	// 3. Diff status
 	switch node.Data.DiffType {
 	case filetree.Added:
-		color = v2styles.DiffAddedColor
-		diffIcon = v2styles.IconAdded
+		color = styles.DiffAddedColor
+		diffIcon = styles.IconAdded
 	case filetree.Removed:
-		color = v2styles.DiffRemovedColor
-		diffIcon = v2styles.IconRemoved
+		color = styles.DiffRemovedColor
+		diffIcon = styles.IconRemoved
 	case filetree.Modified:
-		color = v2styles.DiffModifiedColor
-		diffIcon = v2styles.IconModified
+		color = styles.DiffModifiedColor
+		diffIcon = styles.IconModified
 	}
 
 	// 4. Format name
@@ -130,7 +131,7 @@ func renderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, depth in
 		// For selected items, fill background to full width BUT don't add padding
 		// Using MaxWidth instead of Width to prevent adding extra whitespace
 		style = style.
-			Background(v2styles.PrimaryColor).
+			Background(styles.PrimaryColor).
 			Foreground(lipgloss.Color("#000000")).
 			Bold(true).
 			MaxWidth(width) // Prevent exceeding width, but don't add padding
@@ -142,15 +143,15 @@ func renderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, depth in
 	// Note: no recursion here since we're using collectVisibleNodes instead
 }
 
-// renderNode рекурсивно рендерит узел дерева с иконками и цветами
+// renderNode recursively renders a tree node with icons and colors
 func renderNode(sb *strings.Builder, node *filetree.FileNode, depth int, prefix string) {
 	if node == nil {
 		return
 	}
 
-	// Не рендерим корневой элемент (он обычно пустой)
+	// Don't render root element (it's usually empty)
 	if node.Parent == nil {
-		// Рендерим детей корня
+		// Render root's children
 		if !node.Data.ViewInfo.Collapsed {
 			sortedChildren := sortChildren(node.Children)
 			for _, child := range sortedChildren {
@@ -160,61 +161,61 @@ func renderNode(sb *strings.Builder, node *filetree.FileNode, depth int, prefix 
 		return
 	}
 
-	// 1. Определяем иконку
-	icon := v2styles.IconFile
+	// 1. Determine icon
+	icon := styles.IconFile
 	diffIcon := ""
 
-	// Определяем тип файла
+	// Determine file type
 	if node.Data.FileInfo.IsDir() {
 		if node.Data.ViewInfo.Collapsed {
-			icon = v2styles.IconDirClosed
+			icon = styles.IconDirClosed
 		} else {
-			icon = v2styles.IconDirOpen
+			icon = styles.IconDirOpen
 		}
 	} else if node.Data.FileInfo.TypeFlag == 16 { // tar.TypeSymlink
-		icon = v2styles.IconSymlink
+		icon = styles.IconSymlink
 	}
 
-	// Определяем Diff (Добавлен/Удален/Изменен)
-	color := v2styles.DiffNormalColor
+	// Determine Diff (Added/Removed/Modified)
+	color := styles.DiffNormalColor
 
 	switch node.Data.DiffType {
 	case filetree.Added:
-		color = v2styles.DiffAddedColor
-		diffIcon = v2styles.IconAdded
+		color = styles.DiffAddedColor
+		diffIcon = styles.IconAdded
 	case filetree.Removed:
-		color = v2styles.DiffRemovedColor
-		diffIcon = v2styles.IconRemoved
+		color = styles.DiffRemovedColor
+		diffIcon = styles.IconRemoved
 	case filetree.Modified:
-		color = v2styles.DiffModifiedColor
-		diffIcon = v2styles.IconModified
+		color = styles.DiffModifiedColor
+		diffIcon = styles.IconModified
 	}
 
-	// 2. Формируем строку
+	// 2. Build line
 	name := node.Name
 	if name == "" {
 		name = "/"
 	}
 
-	// Добавляем symlink target если есть
+	// Add symlink target if present
 	if node.Data.FileInfo.TypeFlag == 16 && node.Data.FileInfo.Linkname != "" {
 		name += " → " + node.Data.FileInfo.Linkname
 	}
 
-	// Собираем строку с префиксом (отступом)
+	// Build line with prefix (indent)
 	line := prefix + diffIcon + " " + icon + " " + name
 
-	// Применяем цвет
+	// Apply color
 	style := lipgloss.NewStyle().Foreground(color)
 	sb.WriteString(style.Render(line))
 	sb.WriteString("\n")
 
-	// 3. Рекурсия для детей (если папка не свернута)
+	// 3. Recursion for children (if folder not collapsed)
 	if node.Data.FileInfo.IsDir() && !node.Data.ViewInfo.Collapsed && !node.IsLeaf() {
-		// Вычисляем префикс для детей
+		// Calculate prefix for children
 		childPrefix := prefix + "  "
 
-		// Сортируем и рендерим детей
+		// Sort and render children
 		sortedChildren := sortChildren(node.Children)
 		for _, child := range sortedChildren {
 			renderNode(sb, child, depth+1, childPrefix)
@@ -222,13 +223,13 @@ func renderNode(sb *strings.Builder, node *filetree.FileNode, depth int, prefix 
 	}
 }
 
-// sortChildren сортирует детей узла: сначала папки, потом файлы, все по алфавиту
+// sortChildren sorts node children: directories first, then files, all alphabetically
 func sortChildren(children map[string]*filetree.FileNode) []*filetree.FileNode {
 	if children == nil {
 		return nil
 	}
 
-	// Разделяем на папки и файлы
+	// Split into directories and files
 	var dirs []*filetree.FileNode
 	var files []*filetree.FileNode
 
@@ -240,17 +241,17 @@ func sortChildren(children map[string]*filetree.FileNode) []*filetree.FileNode {
 		}
 	}
 
-	// Сортируем папки
+	// Sort directories
 	sort.Slice(dirs, func(i, j int) bool {
 		return dirs[i].Name < dirs[j].Name
 	})
 
-	// Сортируем файлы
+	// Sort files
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].Name < files[j].Name
 	})
 
-	// Объединяем: сначала папки, потом файлы
+	// Combine: directories first, then files
 	result := append(dirs, files...)
 	return result
 }

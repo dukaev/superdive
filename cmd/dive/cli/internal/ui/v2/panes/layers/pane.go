@@ -1,4 +1,4 @@
-package app
+package layers
 
 import (
 	"fmt"
@@ -10,28 +10,35 @@ import (
 	"github.com/mattn/go-runewidth"
 
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1/viewmodel"
-	v2styles "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
 )
 
-// LayersPane manages the layers list
-type LayersPane struct {
-	focused   bool
-	width     int
-	height    int
-	layerVM   *viewmodel.LayerSetState
-	viewport  viewport.Model
+// LayerChangedMsg is sent when the active layer changes
+type LayerChangedMsg struct {
+	LayerIndex int
+}
+
+// Pane manages the layers list
+type Pane struct {
+	focused    bool
+	width      int
+	height     int
+	layerVM    *viewmodel.LayerSetState
+	viewport   viewport.Model
 	layerIndex int
 }
 
-// NewLayersPane creates a new layers pane
-func NewLayersPane(layerVM *viewmodel.LayerSetState) LayersPane {
+// New creates a new layers pane
+func New(layerVM *viewmodel.LayerSetState) Pane {
 	vp := viewport.New(80, 20)
-	p := LayersPane{
-		layerVM:   layerVM,
-		viewport:  vp,
+	p := Pane{
+		layerVM:    layerVM,
+		viewport:   vp,
 		layerIndex: 0,
-		width:     80,
-		height:    20,
+		width:      80,
+		height:     20,
 	}
 	// IMPORTANT: Generate content immediately so viewport is not empty on startup
 	p.updateContent()
@@ -39,12 +46,12 @@ func NewLayersPane(layerVM *viewmodel.LayerSetState) LayersPane {
 }
 
 // SetSize updates the pane dimensions
-func (m *LayersPane) SetSize(width, height int) {
+func (m *Pane) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 
 	viewportWidth := width - 2
-	viewportHeight := height - BoxContentPadding
+	viewportHeight := height - layout.BoxContentPadding
 	if viewportHeight < 0 {
 		viewportHeight = 0
 	}
@@ -57,7 +64,7 @@ func (m *LayersPane) SetSize(width, height int) {
 }
 
 // SetLayerVM updates the layer viewmodel
-func (m *LayersPane) SetLayerVM(layerVM *viewmodel.LayerSetState) {
+func (m *Pane) SetLayerVM(layerVM *viewmodel.LayerSetState) {
 	m.layerVM = layerVM
 	if layerVM != nil {
 		m.layerIndex = layerVM.LayerIndex
@@ -66,7 +73,7 @@ func (m *LayersPane) SetLayerVM(layerVM *viewmodel.LayerSetState) {
 }
 
 // SetLayerIndex sets the current layer index
-func (m *LayersPane) SetLayerIndex(index int) tea.Cmd {
+func (m *Pane) SetLayerIndex(index int) tea.Cmd {
 	if m.layerVM == nil || index < 0 || index >= len(m.layerVM.Layers) {
 		return nil
 	}
@@ -81,28 +88,28 @@ func (m *LayersPane) SetLayerIndex(index int) tea.Cmd {
 }
 
 // Focus sets the pane as active
-func (m *LayersPane) Focus() {
+func (m *Pane) Focus() {
 	m.focused = true
 }
 
 // Blur sets the pane as inactive
-func (m *LayersPane) Blur() {
+func (m *Pane) Blur() {
 	m.focused = false
 }
 
 // IsFocused returns true if the pane is focused
-func (m *LayersPane) IsFocused() bool {
+func (m *Pane) IsFocused() bool {
 	return m.focused
 }
 
 // Init initializes the pane
-func (m LayersPane) Init() tea.Cmd {
+func (m Pane) Init() tea.Cmd {
 	m.updateContent()
 	return nil
 }
 
 // Update handles messages
-func (m LayersPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -145,13 +152,13 @@ func (m LayersPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the pane
-func (m LayersPane) View() string {
+func (m Pane) View() string {
 	content := m.viewport.View()
-	return v2styles.RenderBox("Layers", m.width, m.height, content, m.focused)
+	return styles.RenderBox("Layers", m.width, m.height, content, m.focused)
 }
 
 // moveUp moves selection up
-func (m *LayersPane) moveUp() tea.Cmd {
+func (m *Pane) moveUp() tea.Cmd {
 	if m.layerVM == nil || m.layerIndex <= 0 {
 		return nil
 	}
@@ -166,7 +173,7 @@ func (m *LayersPane) moveUp() tea.Cmd {
 }
 
 // moveDown moves selection down
-func (m *LayersPane) moveDown() tea.Cmd {
+func (m *Pane) moveDown() tea.Cmd {
 	if m.layerVM == nil || m.layerIndex >= len(m.layerVM.Layers)-1 {
 		return nil
 	}
@@ -181,12 +188,12 @@ func (m *LayersPane) moveDown() tea.Cmd {
 }
 
 // handleClick processes a mouse click
-func (m *LayersPane) handleClick(x, y int) tea.Cmd {
+func (m *Pane) handleClick(x, y int) tea.Cmd {
 	if x < 0 || x >= m.width || y < 0 {
 		return nil
 	}
 
-	relativeY := y - ContentVisualOffset
+	relativeY := y - layout.ContentVisualOffset
 	if relativeY < 0 || relativeY >= m.viewport.Height {
 		return nil
 	}
@@ -200,7 +207,7 @@ func (m *LayersPane) handleClick(x, y int) tea.Cmd {
 }
 
 // updateContent regenerates the viewport content
-func (m *LayersPane) updateContent() {
+func (m *Pane) updateContent() {
 	if m.layerVM == nil || len(m.layerVM.Layers) == 0 {
 		m.viewport.SetContent("No layer data")
 		return
@@ -211,7 +218,7 @@ func (m *LayersPane) updateContent() {
 }
 
 // generateContent creates the layers content
-func (m *LayersPane) generateContent() string {
+func (m *Pane) generateContent() string {
 	width := m.width - 2
 
 	const (
@@ -228,7 +235,7 @@ func (m *LayersPane) generateContent() string {
 
 		if i == m.layerIndex {
 			prefix = "● "
-			style = v2styles.SelectedLayerStyle
+			style = styles.SelectedLayerStyle
 		}
 
 		id := layer.Id
@@ -236,7 +243,7 @@ func (m *LayersPane) generateContent() string {
 			id = id[:idWidth]
 		}
 
-		size := formatSize(layer.Size)
+		size := utils.FormatSize(layer.Size)
 
 		rawCmd := strings.ReplaceAll(layer.Command, "\n", " ")
 		rawCmd = strings.TrimSpace(rawCmd)
@@ -266,11 +273,11 @@ func (m *LayersPane) generateContent() string {
 }
 
 // GetLayerIndex returns the current layer index
-func (m *LayersPane) GetLayerIndex() int {
+func (m *Pane) GetLayerIndex() int {
 	return m.layerIndex
 }
 
 // GetViewport returns the underlying viewport
-func (m *LayersPane) GetViewport() *viewport.Model {
+func (m *Pane) GetViewport() *viewport.Model {
 	return &m.viewport
 }

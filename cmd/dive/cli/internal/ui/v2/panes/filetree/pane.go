@@ -1,4 +1,4 @@
-package app
+package filetree
 
 import (
 	"strings"
@@ -6,11 +6,27 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1/viewmodel"
-	v2styles "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 )
 
-// TreePane manages the file tree
-type TreePane struct {
+// NodeToggledMsg is sent when a tree node is collapsed/expanded
+type NodeToggledMsg struct {
+	NodeIndex int
+}
+
+// TreeSelectionChangedMsg is sent when a tree node is selected
+type TreeSelectionChangedMsg struct {
+	NodeIndex int
+}
+
+// RefreshTreeContentMsg requests tree content to be refreshed
+type RefreshTreeContentMsg struct {
+	LayerIndex int
+}
+
+// Pane manages the file tree
+type Pane struct {
 	focused   bool
 	width     int
 	height    int
@@ -19,10 +35,10 @@ type TreePane struct {
 	treeIndex int
 }
 
-// NewTreePane creates a new tree pane
-func NewTreePane(treeVM *viewmodel.FileTreeViewModel) TreePane {
+// New creates a new tree pane
+func New(treeVM *viewmodel.FileTreeViewModel) Pane {
 	vp := viewport.New(80, 20)
-	p := TreePane{
+	p := Pane{
 		treeVM:    treeVM,
 		viewport:  vp,
 		treeIndex: 0,
@@ -35,12 +51,12 @@ func NewTreePane(treeVM *viewmodel.FileTreeViewModel) TreePane {
 }
 
 // SetSize updates the pane dimensions
-func (m *TreePane) SetSize(width, height int) {
+func (m *Pane) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 
 	viewportWidth := width - 2
-	viewportHeight := height - BoxContentPadding
+	viewportHeight := height - layout.BoxContentPadding
 	if viewportHeight < 0 {
 		viewportHeight = 0
 	}
@@ -54,7 +70,7 @@ func (m *TreePane) SetSize(width, height int) {
 }
 
 // SetTreeVM updates the tree viewmodel
-func (m *TreePane) SetTreeVM(treeVM *viewmodel.FileTreeViewModel) {
+func (m *Pane) SetTreeVM(treeVM *viewmodel.FileTreeViewModel) {
 	m.treeVM = treeVM
 	m.treeIndex = 0
 	m.viewport.GotoTop()
@@ -62,39 +78,39 @@ func (m *TreePane) SetTreeVM(treeVM *viewmodel.FileTreeViewModel) {
 }
 
 // SetTreeIndex sets the current tree index
-func (m *TreePane) SetTreeIndex(index int) {
+func (m *Pane) SetTreeIndex(index int) {
 	m.treeIndex = index
 	m.syncScroll()
 }
 
 // GetTreeIndex returns the current tree index
-func (m *TreePane) GetTreeIndex() int {
+func (m *Pane) GetTreeIndex() int {
 	return m.treeIndex
 }
 
 // Focus sets the pane as active
-func (m *TreePane) Focus() {
+func (m *Pane) Focus() {
 	m.focused = true
 }
 
 // Blur sets the pane as inactive
-func (m *TreePane) Blur() {
+func (m *Pane) Blur() {
 	m.focused = false
 }
 
 // IsFocused returns true if the pane is focused
-func (m *TreePane) IsFocused() bool {
+func (m *Pane) IsFocused() bool {
 	return m.focused
 }
 
 // Init initializes the pane
-func (m TreePane) Init() tea.Cmd {
+func (m Pane) Init() tea.Cmd {
 	m.updateContent()
 	return nil
 }
 
 // Update handles messages
-func (m TreePane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -139,13 +155,13 @@ func (m TreePane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the pane
-func (m TreePane) View() string {
+func (m Pane) View() string {
 	content := m.viewport.View()
-	return v2styles.RenderBox("Current Layer Contents", m.width, m.height, content, m.focused)
+	return styles.RenderBox("Current Layer Contents", m.width, m.height, content, m.focused)
 }
 
 // moveUp moves selection up
-func (m *TreePane) moveUp() tea.Cmd {
+func (m *Pane) moveUp() tea.Cmd {
 	if m.treeIndex > 0 {
 		m.treeIndex--
 		m.syncScroll()
@@ -154,7 +170,7 @@ func (m *TreePane) moveUp() tea.Cmd {
 }
 
 // moveDown moves selection down
-func (m *TreePane) moveDown() tea.Cmd {
+func (m *Pane) moveDown() tea.Cmd {
 	if m.treeVM == nil || m.treeVM.ViewTree == nil {
 		return nil
 	}
@@ -168,7 +184,7 @@ func (m *TreePane) moveDown() tea.Cmd {
 }
 
 // toggleCollapse toggles the current node's collapse state
-func (m *TreePane) toggleCollapse() tea.Cmd {
+func (m *Pane) toggleCollapse() tea.Cmd {
 	if m.treeVM == nil || m.treeVM.ViewTree == nil {
 		return nil
 	}
@@ -200,12 +216,12 @@ func (m *TreePane) toggleCollapse() tea.Cmd {
 }
 
 // handleClick processes a mouse click
-func (m *TreePane) handleClick(x, y int) tea.Cmd {
+func (m *Pane) handleClick(x, y int) tea.Cmd {
 	if x < 0 || x >= m.width || y < 0 {
 		return nil
 	}
 
-	relativeY := y - ContentVisualOffset
+	relativeY := y - layout.ContentVisualOffset
 	if relativeY < 0 || relativeY >= m.viewport.Height {
 		return nil
 	}
@@ -233,7 +249,7 @@ func (m *TreePane) handleClick(x, y int) tea.Cmd {
 }
 
 // syncScroll ensures the cursor is always visible
-func (m *TreePane) syncScroll() {
+func (m *Pane) syncScroll() {
 	if m.treeVM == nil || m.treeVM.ViewTree == nil {
 		return
 	}
@@ -265,7 +281,7 @@ func (m *TreePane) syncScroll() {
 }
 
 // updateContent regenerates the viewport content
-func (m *TreePane) updateContent() {
+func (m *Pane) updateContent() {
 	if m.treeVM == nil {
 		m.viewport.SetContent("No tree data")
 		return
@@ -279,7 +295,7 @@ func (m *TreePane) updateContent() {
 }
 
 // renderTreeContent generates the tree content
-func (m *TreePane) renderTreeContent() string {
+func (m *Pane) renderTreeContent() string {
 	if m.treeVM == nil || m.treeVM.ViewTree == nil {
 		return "No tree data"
 	}
@@ -296,6 +312,6 @@ func (m *TreePane) renderTreeContent() string {
 }
 
 // GetViewport returns the underlying viewport
-func (m *TreePane) GetViewport() *viewport.Model {
+func (m *Pane) GetViewport() *viewport.Model {
 	return &m.viewport
 }

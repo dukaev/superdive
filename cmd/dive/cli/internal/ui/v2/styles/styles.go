@@ -5,33 +5,24 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-// --- Colors ---
-var (
-	PrimaryColor   = lipgloss.Color("#007AFF")
-	SecondaryColor = lipgloss.Color("#5856D6")
-	SuccessColor   = lipgloss.Color("#34C759")
-	WarningColor   = lipgloss.Color("#FF9500")
-	ErrorColor     = lipgloss.Color("#FF3B30")
-	GrayColor      = lipgloss.Color("#8E8E93")
-	LightGrayColor = lipgloss.Color("#C7C7CC")
-	DarkGrayColor  = lipgloss.Color("#48484A")
-	BorderColor    = lipgloss.Color("#3A3A3C")
-)
-
 // --- Base Styles ---
+
 var (
+	// TitleStyle for main titles
 	TitleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(PrimaryColor).
 			Background(lipgloss.Color("#1C1C1E")).
 			Padding(0, 1)
 
+	// StatusStyle for status bar
 	StatusStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#FFFFFF")).
 			Background(SecondaryColor).
 			Padding(0, 1)
 
+	// FilterStyle for filter input
 	FilterStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFFFFF")).
 			Background(DarkGrayColor).
@@ -40,10 +31,37 @@ var (
 
 // --- Component Styles ---
 
-// RenderBox создает рамку с заголовком.
-// ИСПРАВЛЕНО: Обрезает заголовок чтобы гарантировать одну строку
+// SelectedLayerStyle highlights the currently selected layer
+var SelectedLayerStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(PrimaryColor).
+		Background(lipgloss.Color("#1C1C1E"))
+
+// LayerHeaderStyle for layer field headers
+var LayerHeaderStyle = lipgloss.NewStyle().
+	Bold(true).
+	Foreground(SecondaryColor)
+
+// LayerValueStyle for layer field values
+var LayerValueStyle = lipgloss.NewStyle().
+		Foreground(LightGrayColor)
+
+// FileTreeDirStyle for directories in file tree
+var FileTreeDirStyle = lipgloss.NewStyle().
+		Foreground(SuccessColor).
+		Bold(true)
+
+// FileTreeModifiedStyle for modified files in file tree
+var FileTreeModifiedStyle = lipgloss.NewStyle().
+		Foreground(WarningColor).
+		Bold(true)
+
+// --- Rendering Functions ---
+
+// RenderBox creates a bordered box with title and content
+// IMPORTANT: Truncates title to guarantee single line height
 func RenderBox(title string, width, height int, content string, isSelected bool) string {
-	// 1. Защита минимальных размеров
+	// 1. Protect minimum sizes
 	if width < 2 {
 		width = 2
 	}
@@ -69,8 +87,8 @@ func RenderBox(title string, width, height int, content string, isSelected bool)
 		return boxStyle.Render(content)
 	}
 
-	// 2. ИСПРАВЛЕНИЕ: Обрезаем заголовок, чтобы он не переносился на 2 строки
-	// Ширина заголовка: Ширина окна - 2 (рамки) - 2 (запас)
+	// 2. Truncate title to prevent wrapping to 2 lines
+	// Title width: Window width - 2 (borders) - 2 (margin)
 	maxTitleWidth := width - 4
 	if maxTitleWidth < 0 {
 		maxTitleWidth = 0
@@ -78,48 +96,23 @@ func RenderBox(title string, width, height int, content string, isSelected bool)
 
 	truncatedTitle := runewidth.Truncate(title, maxTitleWidth, "…")
 
-	// 3. Рендерим заголовок
+	// 3. Render title
 	titleStyle := lipgloss.NewStyle().
 		Foreground(borderColor).
 		Bold(true)
 
 	titleLine := titleStyle.Render(truncatedTitle)
 
-	// 4. Собираем контент: Заголовок + Пробел + Данные
-	// Используем " " (пробел), чтобы гарантировать высоту отступа в 1 строку
+	// 4. Assemble content: Title + Space + Data
+	// Using " " (space) to guarantee 1 line height for padding
 	innerContent := lipgloss.JoinVertical(lipgloss.Left, titleLine, " ", content)
 
 	return boxStyle.Render(innerContent)
 }
 
-// --- Specific Styles for content ---
+// --- Utility Functions ---
 
-var (
-	SelectedLayerStyle = lipgloss.NewStyle().Bold(true).Foreground(PrimaryColor).Background(lipgloss.Color("#1C1C1E"))
-	LayerHeaderStyle   = lipgloss.NewStyle().Bold(true).Foreground(SecondaryColor)
-	LayerValueStyle    = lipgloss.NewStyle().Foreground(LightGrayColor)
-
-	FileTreeDirStyle      = lipgloss.NewStyle().Foreground(SuccessColor).Bold(true)
-	FileTreeModifiedStyle = lipgloss.NewStyle().Foreground(WarningColor).Bold(true)
-)
-
-// --- Icons ---
-var (
-	IconDirOpen   = "📂 "
-	IconDirClosed = "📁 "
-	IconFile      = "📄 "
-	IconSymlink   = "🔗 "
-	IconAdded     = "✨ "
-	IconRemoved   = "❌ "
-	IconModified  = "✏️ "
-
-	DiffAddedColor    = lipgloss.Color("#A3BE8C")
-	DiffRemovedColor  = lipgloss.Color("#BF616A")
-	DiffModifiedColor = lipgloss.Color("#EBCB8B")
-	DiffNormalColor   = lipgloss.Color("#D8DEE9")
-)
-
-// TruncateString обрезает строку по визуальной ширине
+// TruncateString truncates a string by visual width
 func TruncateString(s string, maxLen int) string {
 	return runewidth.Truncate(s, maxLen, "...")
 }

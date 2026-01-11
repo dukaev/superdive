@@ -1,12 +1,10 @@
-package app
+package utils
 
-import (
-	"fmt"
-)
+import "fmt"
 
-// formatSize formats bytes into human-readable size
+// FormatSize formats bytes into human-readable size
 // This is a shared utility used by all panes
-func formatSize(bytes uint64) string {
+func FormatSize(bytes uint64) string {
 	const unit = 1024
 	if bytes < unit {
 		return fmt.Sprintf("%d B", bytes)

@@ -1,4 +1,4 @@
-package app
+package keys
 
 import "github.com/charmbracelet/bubbles/key"
 
@@ -24,9 +24,9 @@ func (k KeyMap) ShortHelp() []key.Binding {
 // FullHelp returns all keys (for extended help)
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down},                            // Navigation
-		{k.Enter, k.Space},                        // Actions
-		{k.Tab, k.Filter, k.Quit},                  // System
+		{k.Up, k.Down},           // Navigation
+		{k.Enter, k.Space},       // Actions
+		{k.Tab, k.Filter, k.Quit}, // System
 	}
 }
 

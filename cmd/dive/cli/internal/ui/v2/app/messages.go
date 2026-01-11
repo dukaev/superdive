@@ -1,37 +1,21 @@
 package app
 
+// Note: LayerChangedMsg is now defined in panes/layers package
+// Note: NodeToggledMsg, TreeSelectionChangedMsg, RefreshTreeContentMsg are now defined in panes/filetree package
 
-// LayerChangedMsg is sent when the active layer changes
-type LayerChangedMsg struct {
-	LayerIndex int
-}
+// The following message types are kept for potential future use or for app-level coordination
 
-// NodeToggledMsg is sent when a tree node is collapsed/expanded
-type NodeToggledMsg struct {
-	NodeIndex int
-}
-
-// PaneChangedMsg is sent when the active pane changes
+// PaneChangedMsg is sent when the active pane changes (for future use)
 type PaneChangedMsg struct {
 	Pane Pane
 }
 
-// LayerSelectionChangedMsg is sent when a layer is selected (via click or keyboard)
+// LayerSelectionChangedMsg is sent when a layer is selected (for future use)
 type LayerSelectionChangedMsg struct {
 	LayerIndex int
 }
 
-// TreeSelectionChangedMsg is sent when a tree node is selected
-type TreeSelectionChangedMsg struct {
-	NodeIndex int
-}
-
-// PaneFocusRequestMsg requests focus to be moved to a specific pane
+// PaneFocusRequestMsg requests focus to be moved to a specific pane (for future use)
 type PaneFocusRequestMsg struct {
 	Pane Pane
-}
-
-// RefreshTreeContentMsg requests tree content to be refreshed
-type RefreshTreeContentMsg struct {
-	LayerIndex int
 }

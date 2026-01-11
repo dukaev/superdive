@@ -1,4 +1,4 @@
-package app
+package details
 
 import (
 	"fmt"
@@ -8,71 +8,72 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
 	"github.com/wagoodman/dive/dive/image"
-	v2styles "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 )
 
-// DetailsPane displays information about a single layer
-type DetailsPane struct {
+// Pane displays information about a single layer
+type Pane struct {
 	focused bool
 	width   int
 	height  int
 	layer   *image.Layer
 }
 
-// NewDetailsPane creates a new details pane
-func NewDetailsPane() DetailsPane {
-	return DetailsPane{
+// New creates a new details pane
+func New() Pane {
+	return Pane{
 		width:  80,
 		height: 10,
 	}
 }
 
 // SetSize updates the pane dimensions
-func (m *DetailsPane) SetSize(width, height int) {
+func (m *Pane) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 }
 
 // SetLayer updates the layer to display
-func (m *DetailsPane) SetLayer(layer *image.Layer) {
+func (m *Pane) SetLayer(layer *image.Layer) {
 	m.layer = layer
 }
 
 // Focus sets the pane as active
-func (m *DetailsPane) Focus() {
+func (m *Pane) Focus() {
 	m.focused = true
 }
 
 // Blur sets the pane as inactive
-func (m *DetailsPane) Blur() {
+func (m *Pane) Blur() {
 	m.focused = false
 }
 
 // IsFocused returns true if the pane is focused
-func (m *DetailsPane) IsFocused() bool {
+func (m *Pane) IsFocused() bool {
 	return m.focused
 }
 
 // Init initializes the pane
-func (m DetailsPane) Init() tea.Cmd {
+func (m Pane) Init() tea.Cmd {
 	return nil
 }
 
 // Update handles messages
-func (m DetailsPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Details pane doesn't handle any messages - it's read-only
 	return m, nil
 }
 
 // View renders the pane
-func (m DetailsPane) View() string {
+func (m Pane) View() string {
 	content := m.renderContent()
-	return v2styles.RenderBox("Layer Details", m.width, m.height, content, m.focused)
+	return styles.RenderBox("Layer Details", m.width, m.height, content, m.focused)
 }
 
 // renderContent generates the details content
-func (m DetailsPane) renderContent() string {
+func (m Pane) renderContent() string {
 	// Calculate available space: Height - Borders(2) - Header(2)
 	maxLines := m.height - 4
 	if maxLines < 0 {
@@ -101,16 +102,16 @@ func (m DetailsPane) renderContent() string {
 		if lipgloss.Width(tags) > m.width-8 {
 			tags = runewidth.Truncate(tags, m.width-8, "...")
 		}
-		if !addLine(v2styles.LayerHeaderStyle.Render(fmt.Sprintf("Tags: %s", tags))) {
+		if !addLine(styles.LayerHeaderStyle.Render(fmt.Sprintf("Tags: %s", tags))) {
 			goto finish
 		}
 	}
 
 	// ID & Size
-	if !addLine(v2styles.LayerValueStyle.Render(fmt.Sprintf("Id: %s", layer.Id))) {
+	if !addLine(styles.LayerValueStyle.Render(fmt.Sprintf("Id: %s", layer.Id))) {
 		goto finish
 	}
-	if !addLine(v2styles.LayerValueStyle.Render(fmt.Sprintf("Size: %s", formatSize(layer.Size)))) {
+	if !addLine(styles.LayerValueStyle.Render(fmt.Sprintf("Size: %s", utils.FormatSize(layer.Size)))) {
 		goto finish
 	}
 
@@ -125,18 +126,18 @@ func (m DetailsPane) renderContent() string {
 		if lipgloss.Width(digest) > maxDigestWidth {
 			digest = runewidth.Truncate(digest, maxDigestWidth, "...")
 		}
-		if !addLine(v2styles.LayerValueStyle.Render(fmt.Sprintf("Digest: %s", digest))) {
+		if !addLine(styles.LayerValueStyle.Render(fmt.Sprintf("Digest: %s", digest))) {
 			goto finish
 		}
 	}
 
 	// Command - Maximum 2 lines!
-	if !addLine(v2styles.LayerHeaderStyle.Render("Command:")) {
+	if !addLine(styles.LayerHeaderStyle.Render("Command:")) {
 		goto finish
 	}
 
 	if layer.Command == "" {
-		addLine(v2styles.LayerValueStyle.Render("(unavailable)"))
+		addLine(styles.LayerValueStyle.Render("(unavailable)"))
 	} else {
 		maxWidth := m.width - 4
 		if maxWidth < 10 {
@@ -150,14 +151,14 @@ func (m DetailsPane) renderContent() string {
 		// Show max 2 lines: first line + last line (with "..." prefix if long)
 		if len(cmdLines) == 1 {
 			// Short command - fits in 1 line
-			addLine(v2styles.LayerValueStyle.Render(cmdLines[0]))
+			addLine(styles.LayerValueStyle.Render(cmdLines[0]))
 		} else if len(cmdLines) == 2 {
 			// Exactly 2 lines - show both
-			addLine(v2styles.LayerValueStyle.Render(cmdLines[0]))
-			addLine(v2styles.LayerValueStyle.Render(cmdLines[1]))
+			addLine(styles.LayerValueStyle.Render(cmdLines[0]))
+			addLine(styles.LayerValueStyle.Render(cmdLines[1]))
 		} else {
 			// Long command (>2 lines) - show first and last
-			addLine(v2styles.LayerValueStyle.Render(cmdLines[0]))
+			addLine(styles.LayerValueStyle.Render(cmdLines[0]))
 
 			// Last line with "..." prefix
 			lastLine := cmdLines[len(cmdLines)-1]
@@ -168,7 +169,7 @@ func (m DetailsPane) renderContent() string {
 				secondLine = runewidth.Truncate(secondLine, maxWidth, "...")
 			}
 
-			addLine(v2styles.LayerValueStyle.Render(secondLine))
+			addLine(styles.LayerValueStyle.Render(secondLine))
 		}
 	}
 

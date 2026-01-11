@@ -11,8 +11,13 @@ import (
 	v1 "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1/viewmodel"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/keys"
+	filetree "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/filetree"
+	imagepane "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/image"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/details"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/layers"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 	"github.com/wagoodman/dive/dive/image"
-	v2styles "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 )
 
 // Pane represents a UI pane
@@ -77,10 +82,10 @@ type Model struct {
 	layout   LayoutCache
 
 	// Pane components (independent tea.Models)
-	layersPane  LayersPane
-	detailsPane DetailsPane
-	imagePane   ImagePane
-	treePane    TreePane
+	layersPane  layers.Pane
+	detailsPane details.Pane
+	imagePane   imagepane.Pane
+	treePane    filetree.Pane
 
 	// Active pane state
 	activePane Pane
@@ -89,7 +94,7 @@ type Model struct {
 	filter FilterModel
 
 	// Help and key bindings
-	keys KeyMap
+	keys keys.KeyMap
 	help help.Model
 }
 
@@ -118,17 +123,17 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 
 	h := help.New()
 	h.Width = 80
-	h.Styles.ShortKey = v2styles.StatusStyle
-	h.Styles.ShortDesc = v2styles.StatusStyle
-	h.Styles.Ellipsis = v2styles.StatusStyle
+	h.Styles.ShortKey = styles.StatusStyle
+	h.Styles.ShortDesc = styles.StatusStyle
+	h.Styles.Ellipsis = styles.StatusStyle
 
 	f := NewFilterModel()
 
 	// Create pane components
-	layersPane := NewLayersPane(layerVM)
-	detailsPane := NewDetailsPane()
-	imagePane := NewImagePane(&analysis)
-	treePane := NewTreePane(treeVM)
+	layersPane := layers.New(layerVM)
+	detailsPane := details.New()
+	imagePane := imagepane.New(&analysis)
+	treePane := filetree.New(treeVM)
 
 	// Set initial focus
 	layersPane.Focus()
@@ -149,7 +154,7 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 		height:      24,
 		quitting:    false,
 		activePane:  PaneLayer,
-		keys:        Keys,
+		keys:        keys.Keys,
 		help:        h,
 		filter:      f,
 	}
@@ -220,7 +225,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.activePane {
 		case PaneLayer:
 			newPane, cmd := m.layersPane.Update(msg)
-			m.layersPane = newPane.(LayersPane)
+			m.layersPane = newPane.(layers.Pane)
 			cmds = append(cmds, cmd)
 
 		case PaneDetails:
@@ -228,12 +233,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case PaneImage:
 			newPane, cmd := m.imagePane.Update(msg)
-			m.imagePane = newPane.(ImagePane)
+			m.imagePane = newPane.(imagepane.Pane)
 			cmds = append(cmds, cmd)
 
 		case PaneTree:
 			newPane, cmd := m.treePane.Update(msg)
-			m.treePane = newPane.(TreePane)
+			m.treePane = newPane.(filetree.Pane)
 			cmds = append(cmds, cmd)
 		}
 
@@ -250,7 +255,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.filter.Show()
 		}
 
-	case LayerChangedMsg:
+	case layers.LayerChangedMsg:
 		// Layer changed - update details pane and tree
 		if m.layerVM != nil && msg.LayerIndex >= 0 && msg.LayerIndex < len(m.layerVM.Layers) {
 			m.detailsPane.SetLayer(m.layerVM.Layers[msg.LayerIndex])
@@ -263,11 +268,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.imagePane.Blur()
 		m.treePane.Blur()
 
-	case NodeToggledMsg:
+	case filetree.NodeToggledMsg:
 		// Tree node was toggled - tree pane already updated its content
 		// Nothing to do here
 
-	case RefreshTreeContentMsg:
+	case filetree.RefreshTreeContentMsg:
 		// Request to refresh tree content
 		m.treePane.SetTreeVM(m.treeVM)
 
@@ -287,7 +292,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if y < layersEndY {
 				// Layers pane
 				newPane, cmd := m.layersPane.Update(msg)
-				m.layersPane = newPane.(LayersPane)
+				m.layersPane = newPane.(layers.Pane)
 				cmds = append(cmds, cmd)
 				if m.activePane != PaneLayer {
 					m.activePane = PaneLayer
@@ -302,7 +307,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				// Image pane
 				newPane, cmd := m.imagePane.Update(msg)
-				m.imagePane = newPane.(ImagePane)
+				m.imagePane = newPane.(imagepane.Pane)
 				cmds = append(cmds, cmd)
 				if m.activePane != PaneImage {
 					m.activePane = PaneImage
@@ -312,7 +317,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if inRightCol {
 			// Tree pane
 			newPane, cmd := m.treePane.Update(msg)
-			m.treePane = newPane.(TreePane)
+			m.treePane = newPane.(filetree.Pane)
 			cmds = append(cmds, cmd)
 			if m.activePane != PaneTree {
 				m.activePane = PaneTree
@@ -391,7 +396,7 @@ func (m *Model) updateTreeForCurrentLayer() {
 // View implements tea.Model (PURE FUNCTION - no side effects!)
 func (m Model) View() string {
 	if m.quitting {
-		return v2styles.TitleStyle.Foreground(v2styles.SuccessColor).Render("Thanks for using Dive V2UI!")
+		return styles.TitleStyle.Foreground(styles.SuccessColor).Render("Thanks for using Dive V2UI!")
 	}
 
 	// Calculate layout if not yet calculated (first run)
@@ -403,7 +408,7 @@ func (m Model) View() string {
 	statusBar := m.help.View(m.keys)
 
 	// Add active pane indicator to status bar
-	paneName := v2styles.StatusStyle.Render(fmt.Sprintf(" Active: %s ", m.activePane))
+	paneName := styles.StatusStyle.Render(fmt.Sprintf(" Active: %s ", m.activePane))
 	statusBar = lipgloss.JoinHorizontal(lipgloss.Top, statusBar, strings.Repeat(" ", 5), paneName)
 
 	// Render panes directly using their View() methods
