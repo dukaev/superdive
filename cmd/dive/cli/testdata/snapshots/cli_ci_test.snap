@@ -41,6 +41,7 @@ FAIL [pass:1 fail:1 skip:1]
       highest-wasted-bytes: 19Mb
       highest-user-wasted-percent: "0.6"
   json-path: ""
+  version: v1
   keybinding:
       quit: ctrl+c
       toggle-view: tab

@@ -39,6 +39,9 @@ rules:
 # Skip the interactive TUI and write the layer analysis statistics to a given file. (env: DIVE_JSON_PATH)
 json-path: ''
 
+# (env: DIVE_VERSION)
+version: 'v1'
+
 keybinding:
   # quit the application (global) (env: DIVE_KEYBINDING_QUIT)
   quit: 'ctrl+c'

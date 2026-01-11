@@ -17,43 +17,6 @@ type VisibleNode struct {
 	Depth int
 }
 
-// renderTreeContent генерирует красивую строку дерева с иконками и цветами
-func (m Model) renderTreeContent() string {
-	if m.treeVM == nil {
-		return "Tree viewer not initialized"
-	}
-
-	if m.treeVM.ViewTree == nil {
-		return "Loading tree..."
-	}
-
-	if m.treeVM.ViewTree.Root == nil {
-		return "Empty tree"
-	}
-
-	var sb strings.Builder
-
-	// Collect all visible nodes
-	visibleNodes := collectVisibleNodes(m.treeVM.ViewTree.Root)
-
-	// Adjust treeIndex if out of bounds
-	if m.treeIndex >= len(visibleNodes) {
-		m.treeIndex = len(visibleNodes) - 1
-	}
-	if m.treeIndex < 0 {
-		m.treeIndex = 0
-	}
-
-	// Render nodes with cursor indicator
-	for i, vn := range visibleNodes {
-		isSelected := (i == m.treeIndex)
-		// Pass viewport width for full-width selection highlight
-		renderNodeWithCursor(&sb, vn.Node, vn.Depth, isSelected, m.treeViewport.Width)
-	}
-
-	return sb.String()
-}
-
 // collectVisibleNodes collects all visible nodes in a flat list
 func collectVisibleNodes(root *filetree.FileNode) []VisibleNode {
 	var nodes []VisibleNode
