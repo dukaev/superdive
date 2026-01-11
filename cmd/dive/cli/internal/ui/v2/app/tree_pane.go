@@ -47,6 +47,10 @@ func (m *TreePane) SetSize(width, height int) {
 
 	m.viewport.Width = viewportWidth
 	m.viewport.Height = viewportHeight
+
+	// CRITICAL: Regenerate content with new width to prevent soft wrap
+	// Without this, long paths will wrap when window is resized
+	m.updateContent()
 }
 
 // SetTreeVM updates the tree viewmodel

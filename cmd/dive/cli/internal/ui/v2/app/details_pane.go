@@ -117,49 +117,59 @@ func (m DetailsPane) renderContent() string {
 	// Digest
 	if layer.Digest != "" {
 		digest := layer.Digest
-		if len(digest) > 71 {
-			digest = digest[:71] + "..."
+		// Truncate to fit pane width (leave space for "Digest: " prefix)
+		maxDigestWidth := m.width - 10
+		if maxDigestWidth < 20 {
+			maxDigestWidth = 20
+		}
+		if lipgloss.Width(digest) > maxDigestWidth {
+			digest = runewidth.Truncate(digest, maxDigestWidth, "...")
 		}
 		if !addLine(v2styles.LayerValueStyle.Render(fmt.Sprintf("Digest: %s", digest))) {
 			goto finish
 		}
 	}
 
-	// Spacer
-	if !addLine("") {
+	// Command - Maximum 2 lines!
+	if !addLine(v2styles.LayerHeaderStyle.Render("Command:")) {
 		goto finish
 	}
 
-	// Command
-	if layer.Command != "" {
-		if !addLine(v2styles.LayerHeaderStyle.Render("Command:")) {
-			goto finish
-		}
-
+	if layer.Command == "" {
+		addLine(v2styles.LayerValueStyle.Render("(unavailable)"))
+	} else {
 		maxWidth := m.width - 4
-		if maxWidth < 20 {
-			maxWidth = 20
+		if maxWidth < 10 {
+			maxWidth = 10
 		}
 
 		// Wrap command to fit width
 		wrappedCmd := lipgloss.NewStyle().Width(maxWidth).Render(layer.Command)
-		wrappedLines := strings.Split(wrappedCmd, "\n")
+		cmdLines := strings.Split(wrappedCmd, "\n")
 
-		// Add command lines while space remains
-		remainingLines := maxLines - len(lines)
-		if remainingLines > 0 {
-			for i, line := range wrappedLines {
-				if i >= remainingLines {
-					// No space left, replace last line with "..."
-					lines[len(lines)-1] = v2styles.LayerValueStyle.Render("...")
-					break
-				}
-				addLine(v2styles.LayerValueStyle.Render(line))
+		// Show max 2 lines: first line + last line (with "..." prefix if long)
+		if len(cmdLines) == 1 {
+			// Short command - fits in 1 line
+			addLine(v2styles.LayerValueStyle.Render(cmdLines[0]))
+		} else if len(cmdLines) == 2 {
+			// Exactly 2 lines - show both
+			addLine(v2styles.LayerValueStyle.Render(cmdLines[0]))
+			addLine(v2styles.LayerValueStyle.Render(cmdLines[1]))
+		} else {
+			// Long command (>2 lines) - show first and last
+			addLine(v2styles.LayerValueStyle.Render(cmdLines[0]))
+
+			// Last line with "..." prefix
+			lastLine := cmdLines[len(cmdLines)-1]
+			secondLine := "..." + lastLine
+
+			// Truncate if still too long
+			if lipgloss.Width(secondLine) > maxWidth {
+				secondLine = runewidth.Truncate(secondLine, maxWidth, "...")
 			}
+
+			addLine(v2styles.LayerValueStyle.Render(secondLine))
 		}
-	} else {
-		addLine(v2styles.LayerHeaderStyle.Render("Command:"))
-		addLine(v2styles.LayerValueStyle.Render("(unavailable)"))
 	}
 
 finish:

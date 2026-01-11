@@ -115,9 +115,9 @@ func renderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, depth in
 
 	rawText := fmt.Sprintf("%s%s%s%s", indent+cursor, diffIcon, icon, name)
 
-	// ВАЖНО: Truncate to prevent line wrapping which breaks click detection
-	// width is the viewport content width. Leave small margin to ensure no wrapping
-	maxTextWidth := width
+	// ВАЖНО: Truncate to prevent line wrapping which breaks scroll alignment
+	// CRITICAL: Leave 1 char margin for terminal cursor to prevent auto-scroll
+	maxTextWidth := width - 1
 	if maxTextWidth < 10 {
 		maxTextWidth = 10 // Protection
 	}
@@ -127,13 +127,13 @@ func renderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, depth in
 	// 7. Apply style
 	style := lipgloss.NewStyle().Foreground(color)
 	if isSelected {
-		// --- FIX 3: Force width to 100% of viewport for selected items ---
+		// For selected items, fill background to full width BUT don't add padding
+		// Using MaxWidth instead of Width to prevent adding extra whitespace
 		style = style.
 			Background(v2styles.PrimaryColor).
 			Foreground(lipgloss.Color("#000000")).
 			Bold(true).
-			Width(width).     // Explicitly set width to 100%
-			MaxWidth(width)   // Prevent exceeding width
+			MaxWidth(width) // Prevent exceeding width, but don't add padding
 	}
 
 	sb.WriteString(style.Render(truncatedText))

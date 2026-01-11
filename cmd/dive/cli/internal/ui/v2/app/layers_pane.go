@@ -51,6 +51,9 @@ func (m *LayersPane) SetSize(width, height int) {
 
 	m.viewport.Width = viewportWidth
 	m.viewport.Height = viewportHeight
+
+	// CRITICAL: Regenerate content with new width for proper truncation
+	m.updateContent()
 }
 
 // SetLayerVM updates the layer viewmodel

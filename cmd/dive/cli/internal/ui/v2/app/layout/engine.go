@@ -52,18 +52,21 @@ func (e *Engine) Calculate(width, height int) Result {
 		result.RightWidth = 20
 	}
 
-	// Calculate heights (left column: 40%, 20%, 40%)
-	result.LayersHeight = availableHeight * 2 / 5
+	// Calculate heights (left column)
+	// Layers: flexible, Image: flexible, Details: at least 12 lines
+	result.DetailsHeight = 12  // Minimum for command display
+
+	if result.DetailsHeight > availableHeight/3 {
+		result.DetailsHeight = availableHeight / 3
+	}
+
+	remainingHeight := availableHeight - result.DetailsHeight
+	result.LayersHeight = remainingHeight / 2
 	if result.LayersHeight < 5 {
 		result.LayersHeight = 5
 	}
 
-	result.DetailsHeight = availableHeight * 1 / 5
-	if result.DetailsHeight < 3 {
-		result.DetailsHeight = 3
-	}
-
-	result.ImageHeight = availableHeight - result.LayersHeight - result.DetailsHeight
+	result.ImageHeight = remainingHeight - result.LayersHeight
 	if result.ImageHeight < 5 {
 		result.ImageHeight = 5
 	}
