@@ -289,23 +289,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				newPane, cmd := m.layersPane.Update(msg)
 				m.layersPane = newPane.(LayersPane)
 				cmds = append(cmds, cmd)
-				m.activePane = PaneLayer
+				if m.activePane != PaneLayer {
+					m.activePane = PaneLayer
+					m.updateFocus()
+				}
 			} else if y >= layersEndY && y < detailsEndY {
 				// Details pane (read-only, no mouse handling)
-				m.activePane = PaneDetails
+				if m.activePane != PaneDetails {
+					m.activePane = PaneDetails
+					m.updateFocus()
+				}
 			} else {
 				// Image pane
 				newPane, cmd := m.imagePane.Update(msg)
 				m.imagePane = newPane.(ImagePane)
 				cmds = append(cmds, cmd)
-				m.activePane = PaneImage
+				if m.activePane != PaneImage {
+					m.activePane = PaneImage
+					m.updateFocus()
+				}
 			}
 		} else if inRightCol {
 			// Tree pane
 			newPane, cmd := m.treePane.Update(msg)
 			m.treePane = newPane.(TreePane)
 			cmds = append(cmds, cmd)
-			m.activePane = PaneTree
+			if m.activePane != PaneTree {
+				m.activePane = PaneTree
+				m.updateFocus()
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -336,27 +348,26 @@ func (m *Model) togglePane() {
 		m.activePane = PaneLayer
 	}
 
-	// Update focus state based on new active pane
+	m.updateFocus()
+}
+
+func (m *Model) updateFocus() {
+	// Update focus state based on current active pane
+	// Blur all panes first
+	m.layersPane.Blur()
+	m.detailsPane.Blur()
+	m.imagePane.Blur()
+	m.treePane.Blur()
+
+	// Focus only the active pane
 	switch m.activePane {
 	case PaneLayer:
 		m.layersPane.Focus()
-		m.detailsPane.Blur()
-		m.imagePane.Blur()
-		m.treePane.Blur()
 	case PaneDetails:
-		m.layersPane.Blur()
-		m.detailsPane.Focus() // Show focus visually, but no keyboard handling
-		m.imagePane.Blur()
-		m.treePane.Blur()
+		m.detailsPane.Focus() // Show focus visually
 	case PaneImage:
-		m.layersPane.Blur()
-		m.detailsPane.Blur()
 		m.imagePane.Focus()
-		m.treePane.Blur()
 	case PaneTree:
-		m.layersPane.Blur()
-		m.detailsPane.Blur()
-		m.imagePane.Blur()
 		m.treePane.Focus()
 	}
 }
