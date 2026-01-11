@@ -1,0 +1,60 @@
+File: main
+Type: inuse_space
+Time: 2026-01-08 18:55:24 +03
+Showing nodes accounting for 53.14MB, 100% of 53.14MB total
+      flat  flat%   sum%        cum   cum%
+      21MB 39.52% 39.52%       21MB 39.52%  github.com/wagoodman/dive/dive/filetree.NewNode
+    8.55MB 16.09% 55.61%    28.05MB 52.78%  github.com/wagoodman/dive/dive/filetree.(*FileNode).AddChild
+    5.51MB 10.37% 65.98%    14.03MB 26.40%  github.com/wagoodman/dive/dive/filetree.Efficiency.func1
+       5MB  9.41% 75.39%        5MB  9.41%  github.com/wagoodman/dive/dive/filetree.(*FileNode).Path
+    4.01MB  7.54% 82.93%     4.01MB  7.54%  runtime.allocm
+    3.50MB  6.59% 89.52%     3.50MB  6.59%  archive/tar.(*parser).parseString
+       3MB  5.65% 95.16%     6.50MB 12.23%  archive/tar.(*Reader).readHeader
+    0.57MB  1.06% 96.23%     0.57MB  1.06%  runtime/pprof.StartCPUProfile
+    0.50MB  0.95% 97.18%     0.50MB  0.95%  github.com/gdamore/tcell/v2.map.init.0
+    0.50MB  0.94% 98.12%     0.50MB  0.94%  runtime.malg
+    0.50MB  0.94% 99.06%     0.50MB  0.94%  runtime.(*scavengerState).init
+    0.50MB  0.94%   100%     0.50MB  0.94%  runtime.acquireSudog
+         0     0%   100%     6.50MB 12.23%  archive/tar.(*Reader).Next
+         0     0%   100%     6.50MB 12.23%  archive/tar.(*Reader).next
+         0     0%   100%    46.57MB 87.62%  github.com/anchore/clio.(*application).WrapRunE.func1.1
+         0     0%   100%    46.57MB 87.62%  github.com/anchore/clio.async.func1
+         0     0%   100%     0.50MB  0.95%  github.com/gdamore/tcell/v2.init
+         0     0%   100%    46.57MB 87.62%  github.com/wagoodman/dive/cmd/dive/cli/internal/command.Root.func2
+         0     0%   100%    14.03MB 26.40%  github.com/wagoodman/dive/cmd/dive/cli/internal/command.run
+         0     0%   100%    14.03MB 26.40%  github.com/wagoodman/dive/cmd/dive/cli/internal/command/adapter.analysisActionObserver.Analyze
+         0     0%   100%    32.54MB 61.22%  github.com/wagoodman/dive/cmd/dive/cli/internal/command/adapter.imageActionObserver.Fetch
+         0     0%   100%     1.50MB  2.82%  github.com/wagoodman/dive/dive/filetree.(*FileNode).Copy
+         0     0%   100%    14.03MB 26.40%  github.com/wagoodman/dive/dive/filetree.(*FileNode).VisitDepthChildFirst
+         0     0%   100%    28.05MB 52.78%  github.com/wagoodman/dive/dive/filetree.(*FileTree).AddPath
+         0     0%   100%     1.50MB  2.82%  github.com/wagoodman/dive/dive/filetree.(*FileTree).Copy
+         0     0%   100%     2.02MB  3.79%  github.com/wagoodman/dive/dive/filetree.(*FileTree).Stack
+         0     0%   100%     2.02MB  3.79%  github.com/wagoodman/dive/dive/filetree.(*FileTree).Stack.func1
+         0     0%   100%    14.03MB 26.40%  github.com/wagoodman/dive/dive/filetree.(*FileTree).VisitDepthChildFirst
+         0     0%   100%    14.03MB 26.40%  github.com/wagoodman/dive/dive/filetree.Efficiency
+         0     0%   100%     3.52MB  6.62%  github.com/wagoodman/dive/dive/filetree.StackTreeRange
+         0     0%   100%    14.03MB 26.40%  github.com/wagoodman/dive/dive/image.Analyze
+         0     0%   100%    32.54MB 61.22%  github.com/wagoodman/dive/dive/image/docker.(*engineResolver).Fetch
+         0     0%   100%    32.54MB 61.22%  github.com/wagoodman/dive/dive/image/docker.NewImageArchive
+         0     0%   100%     6.50MB 12.23%  github.com/wagoodman/dive/dive/image/docker.getFileList
+         0     0%   100%    32.54MB 61.22%  github.com/wagoodman/dive/dive/image/docker.processLayerTar
+         0     0%   100%     0.57MB  1.06%  main.main
+         0     0%   100%     0.50MB  0.94%  runtime.bgscavenge
+         0     0%   100%     0.50MB  0.95%  runtime.doInit
+         0     0%   100%     0.50MB  0.95%  runtime.doInit1
+         0     0%   100%     0.50MB  0.94%  runtime.ensureSigM.func1
+         0     0%   100%     1.07MB  2.01%  runtime.main
+         0     0%   100%     0.50MB  0.94%  runtime.mcall
+         0     0%   100%     3.51MB  6.60%  runtime.mstart
+         0     0%   100%     3.51MB  6.60%  runtime.mstart0
+         0     0%   100%     3.51MB  6.60%  runtime.mstart1
+         0     0%   100%     4.01MB  7.54%  runtime.newm
+         0     0%   100%     0.50MB  0.94%  runtime.newproc.func1
+         0     0%   100%     0.50MB  0.94%  runtime.newproc1
+         0     0%   100%     0.50MB  0.94%  runtime.park_m
+         0     0%   100%     4.01MB  7.54%  runtime.resetspinning
+         0     0%   100%     4.01MB  7.54%  runtime.schedule
+         0     0%   100%     0.50MB  0.94%  runtime.selectgo
+         0     0%   100%     4.01MB  7.54%  runtime.startm
+         0     0%   100%     0.50MB  0.94%  runtime.systemstack
+         0     0%   100%     4.01MB  7.54%  runtime.wakep

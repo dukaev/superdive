@@ -4,16 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+
 	"github.com/anchore/clio"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/command/adapter"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/options"
+	v2ui "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui"
 	"github.com/wagoodman/dive/dive"
 	"github.com/wagoodman/dive/dive/image"
 	"github.com/wagoodman/dive/internal/bus"
-	"os"
 )
 
 type rootOptions struct {
@@ -26,7 +28,7 @@ func Root(app clio.Application) *cobra.Command {
 	opts := &rootOptions{
 		Application: options.DefaultApplication(),
 	}
-	return app.SetupRootCommand(&cobra.Command{
+	cmd := app.SetupRootCommand(&cobra.Command{
 		Use:   "dive [IMAGE]",
 		Short: "Docker Image Visualizer & Explorer",
 		Long: `This tool provides a way to discover and explore the contents of a docker image. Additionally the tool estimates
@@ -39,6 +41,11 @@ the amount of wasted space and identifies the offending files from the image.`,
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Check for --ui2 flag
+			if ui2, _ := cmd.Flags().GetBool("ui2"); ui2 {
+				opts.UI.Version = "v2"
+			}
+
 			if err := setUI(app, opts.Application); err != nil {
 				return fmt.Errorf("failed to set UI: %w", err)
 			}
@@ -58,6 +65,11 @@ the amount of wasted space and identifies the offending files from the image.`,
 			return run(ctx, opts.Application, img, resolver)
 		},
 	}, opts)
+
+	// Add --ui2 flag
+	cmd.Flags().Bool("ui2", false, "Use the new V2 UI (experimental)")
+
+	return cmd
 }
 
 func setUI(app clio.Application, opts options.Application) error {
@@ -67,6 +79,13 @@ func setUI(app clio.Application, opts options.Application) error {
 
 	state := app.(Stater).State()
 
+	// Choose UI version based on configuration
+	if opts.UIVersion() == "v2" {
+		ux := v2ui.NewV2UI(opts.V1Preferences(), os.Stdout, state.Config.Log.Quiet, state.Config.Log.Verbosity)
+		return state.UI.Replace(ux)
+	}
+
+	// Default to V1
 	ux := ui.NewV1UI(opts.V1Preferences(), os.Stdout, state.Config.Log.Quiet, state.Config.Log.Verbosity)
 	return state.UI.Replace(ux)
 }

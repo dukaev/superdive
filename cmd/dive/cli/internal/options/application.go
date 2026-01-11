@@ -30,3 +30,10 @@ func (c Application) V1Preferences() v1.Preferences {
 		FiletreeDiffHide:           nil,
 	}
 }
+
+func (c Application) UIVersion() string {
+	if c.UI.Version == "v2" {
+		return "v2"
+	}
+	return "v1" // default
+}
