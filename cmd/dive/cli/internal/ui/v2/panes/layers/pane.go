@@ -30,11 +30,12 @@ type ShowLayerDetailMsg struct {
 
 // Define layout constants to ensure click detection matches rendering
 const (
-	ColWidthPrefix = 1  // " "
+	ColWidthPrefix = 7  // "[1/n] " format (max 6 chars + space)
 	ColWidthID     = 12
 	ColWidthSize   = 9
+	ColWidthDigest = 13 // "sha256:abc12" format (12 chars + space)
 	ColPadding     = 1
-	// Calculation: Prefix(1) + ID(12) + Pad(1) + Size(9) + Pad(1)
+	// Calculation: Prefix(7) + ID(12) + Pad(1) + Size(9) + Pad(1)
 	StatsStartOffset = ColWidthPrefix + ColWidthID + ColPadding + ColWidthSize + ColPadding
 )
 
@@ -151,9 +152,9 @@ func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
-		case "up", "k":
+		case "up", "k", "[":
 			cmds = append(cmds, m.moveUp())
-		case "down", "j":
+		case "down", "j", "]":
 			cmds = append(cmds, m.moveDown())
 		case " ":
 			// Show layer detail modal
@@ -290,11 +291,13 @@ func (m *Pane) generateContent() string {
 	var fullContent strings.Builder
 
 	for i, layer := range m.layerVM.Layers {
-		prefix := " "
+		// Format: [current/total]
+		totalLayers := len(m.layerVM.Layers)
+		prefix := fmt.Sprintf("[%d/%d] ", i+1, totalLayers)
 		style := lipgloss.NewStyle()
 
 		if i == m.layerIndex {
-			// No bullet, just color highlighting
+			// Highlight entire row width, not just text
 			style = styles.SelectedLayerStyle
 		}
 
@@ -309,7 +312,6 @@ func (m *Pane) generateContent() string {
 
 		// Update and get stats from component
 		statsStr := ""
-		statsVisualWidth := 9 // Default approximate width
 		if i < len(m.statsRows) {
 			// Use comparer to get the comparison tree for this layer
 			// For layer i, we want to show changes from layer i-1 to i (or 0 to i for first layer)
@@ -339,36 +341,41 @@ func (m *Pane) generateContent() string {
 
 			stats := utils.CalculateFileStats(treeToCompare)
 			m.statsRows[i].SetStats(stats)
-			statsStr = m.statsRows[i].Render()
 
-			// Calculate total visual width for command truncation math
-			addedW := m.statsRows[i].GetAdded().GetVisualWidth()
-			modW := m.statsRows[i].GetModified().GetVisualWidth()
-			remW := m.statsRows[i].GetRemoved().GetVisualWidth()
-			statsVisualWidth = addedW + 1 + modW + 1 + remW // +1 for spaces
+			// Use plain rendering for selected layer to allow background highlight
+			// Colors would interfere with the row background color
+			if i == m.layerIndex {
+				statsStr = m.statsRows[i].RenderPlain()
+			} else {
+				statsStr = m.statsRows[i].Render()
+			}
 		}
 
 		// Clean command from newlines
 		rawCmd := strings.ReplaceAll(layer.Command, "\n", " ")
 		rawCmd = strings.TrimSpace(rawCmd)
 
-		// Calculate available space for command
-		// Logic must match StatsStartOffset constants
-		// Used = Prefix(1) + ID(12) + Pad(1) + Size(9) + Pad(1) + StatsWidth + Pad(1)
-		usedWidth := StatsStartOffset + statsVisualWidth + 1
-
-		availableCmdWidth := width - usedWidth
-		if availableCmdWidth < 0 {
-			availableCmdWidth = 0
+		// Truncate command to fixed width (15 chars + "...")
+		const maxCmdWidth = 15
+		cmd := ""
+		if rawCmd != "" {
+			cmd = runewidth.Truncate(rawCmd, maxCmdWidth, "...")
 		}
 
-		cmd := ""
-		if availableCmdWidth > 0 && rawCmd != "" {
-			cmd = runewidth.Truncate(rawCmd, availableCmdWidth, "...")
+		// Format digest (short version: first 12 chars after "sha256:")
+		digest := ""
+		if layer.Digest != "" {
+			// Remove "sha256:" prefix if present and take first 12 chars
+			shortDigest := strings.TrimPrefix(layer.Digest, "sha256:")
+			if len(shortDigest) > 12 {
+				shortDigest = shortDigest[:12]
+			}
+			// Add gray color styling for digest
+			digest = styles.MetaDataStyle.Render(shortDigest)
 		}
 
 		// Build the line using strict column widths
-		// %-1s  = Prefix
+		// %-*s  = Prefix (left align, width 7) "[1/n] "
 		// %-*s  = ID (left align, width 12)
 		// " "   = Padding
 		// %*s   = Size (right align, width 9)
@@ -376,13 +383,36 @@ func (m *Pane) generateContent() string {
 		// %s    = Stats
 		// " "   = Padding
 		// %s    = Command
-		text := fmt.Sprintf("%-1s%-*s %*s %s %s",
-			prefix,
-			ColWidthID, id,
-			ColWidthSize, size,
-			statsStr,
-			cmd,
-		)
+		// " "   = Padding before digest
+		// %s    = Digest (gray color)
+		var text string
+		if digest != "" {
+			text = fmt.Sprintf("%-*s%-*s %*s %s %s %s",
+				ColWidthPrefix, prefix,
+				ColWidthID, id,
+				ColWidthSize, size,
+				statsStr,
+				cmd,
+				digest,
+			)
+		} else {
+			text = fmt.Sprintf("%-*s%-*s %*s %s %s",
+				ColWidthPrefix, prefix,
+				ColWidthID, id,
+				ColWidthSize, size,
+				statsStr,
+				cmd,
+			)
+		}
+
+		// Pad to full width for selected layer to ensure background fills entire row
+		if i == m.layerIndex {
+			textWidth := runewidth.StringWidth(text)
+			padding := (width - 2) - textWidth
+			if padding > 0 {
+				text += strings.Repeat(" ", padding)
+			}
+		}
 
 		fullContent.WriteString(style.Render(text))
 		fullContent.WriteString("\n")

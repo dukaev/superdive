@@ -31,8 +31,8 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 }
 
 var Keys = KeyMap{
-	Up:     key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "navigate up")),
-	Down:   key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "navigate down")),
+	Up:     key.NewBinding(key.WithKeys("up", "k", "["), key.WithHelp("↑/k/[", "navigate up")),
+	Down:   key.NewBinding(key.WithKeys("down", "j", "]"), key.WithHelp("↓/j/]", "navigate down")),
 	Left:   key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/h", "scroll left")),
 	Right:  key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("→/l", "scroll right")),
 	Tab:    key.NewBinding(key.WithKeys("tab", "shift+tab"), key.WithHelp("tab", "switch pane")),
