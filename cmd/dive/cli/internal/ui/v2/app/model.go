@@ -286,8 +286,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.treePane.Blur()
 
 	case filetreepane.NodeToggledMsg:
-		// Tree node was toggled - tree pane already updated its content
-		// Nothing to do here
+		// Forward message to tree pane to refresh its visibleNodes cache
+		// CRITICAL: This fixes the copy-on-write issue. The InputHandler's callback
+		// modified the collapsed flag in the tree data, but the visible copy of
+		// treePane (stored in this Model) needs to refresh its cache to show changes.
+		newPane, cmd := m.treePane.Update(msg)
+		m.treePane = newPane.(filetreepane.Pane)
+		cmds = append(cmds, cmd)
 
 	case filetreepane.RefreshTreeContentMsg:
 		// Request to refresh tree content

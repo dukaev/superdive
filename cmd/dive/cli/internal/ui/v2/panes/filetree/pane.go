@@ -3,8 +3,8 @@ package filetree
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1/viewmodel"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
@@ -28,15 +28,18 @@ type RefreshTreeContentMsg struct {
 
 // Pane manages the file tree
 type Pane struct {
-	focused   bool
-	width     int
-	height    int
-	treeVM    *viewmodel.FileTreeViewModel
+	focused bool
+	width   int
+	height  int
+	treeVM  *viewmodel.FileTreeViewModel
+
+	// Cache of currently visible nodes to avoid re-traversal every frame
+	visibleNodes []VisibleNode
 
 	// Components
-	selection   *Selection
-	viewportMgr *ViewportManager
-	navigation  *Navigation
+	selection    *Selection
+	viewportMgr  *ViewportManager
+	navigation   *Navigation
 	inputHandler *InputHandler
 }
 
@@ -57,10 +60,15 @@ func New(treeVM *viewmodel.FileTreeViewModel) Pane {
 		focused:      false,
 		width:        80,
 		height:       20,
+		visibleNodes: []VisibleNode{},
 	}
 
 	// Set up callbacks
 	p.navigation.SetVisibleNodesFunc(func() []VisibleNode {
+		// Return the cached nodes if available to speed up navigation checks
+		if p.visibleNodes != nil {
+			return p.visibleNodes
+		}
 		if p.treeVM == nil || p.treeVM.ViewTree == nil {
 			return nil
 		}
@@ -69,6 +77,10 @@ func New(treeVM *viewmodel.FileTreeViewModel) Pane {
 
 	p.navigation.SetRefreshFunc(p.updateContent)
 	p.navigation.SetToggleCollapseFunc(p.toggleCollapse)
+
+	// Set up callback for InputHandler to use Pane's toggleCollapse implementation
+	// This ensures it uses the cached visibleNodes instead of re-traversing the tree
+	p.inputHandler.SetToggleCollapseFunc(p.toggleCollapse)
 
 	// IMPORTANT: Generate content immediately so viewport is not empty on startup
 	p.updateContent()
@@ -82,7 +94,11 @@ func (m *Pane) SetSize(width, height int) {
 	m.inputHandler.SetSize(width, height)
 
 	viewportWidth := width - 2
-	viewportHeight := height - layout.BoxContentPadding
+
+	// Calculate viewport height accounting for:
+	// - BoxContentPadding: borders (2) + box header (2) = 4
+	// - TreeTableHeaderHeight: "Name   Size   Permissions" header (1)
+	viewportHeight := height - layout.BoxContentPadding - layout.TreeTableHeaderHeight
 	if viewportHeight < 0 {
 		viewportHeight = 0
 	}
@@ -97,6 +113,11 @@ func (m *Pane) SetSize(width, height int) {
 // SetTreeVM updates the tree viewmodel
 func (m *Pane) SetTreeVM(treeVM *viewmodel.FileTreeViewModel) {
 	m.treeVM = treeVM
+
+	// CRITICAL: Also update the reference in InputHandler to prevent desync
+	// Without this, InputHandler would continue operating on the old tree reference
+	m.inputHandler.SetTreeVM(treeVM)
+
 	m.selection.SetTreeIndex(0)
 	m.viewportMgr.GotoTop()
 	m.updateContent()
@@ -169,6 +190,13 @@ func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+	case NodeToggledMsg:
+		// A folder was collapsed/expanded, need to refresh visibleNodes cache
+		// CRITICAL: This fixes the copy-on-write issue where InputHandler updates
+		// the old copy of the Pane. By handling this message in the active Pane's
+		// Update method, we ensure the visible copy of the Pane refreshes its cache.
+		m.updateContent()
+
 	case RefreshTreeContentMsg:
 		m.updateContent()
 	}
@@ -185,8 +213,10 @@ func (m Pane) View() string {
 	// 1. Generate static header
 	header := RenderHeader(m.width)
 
-	// 2. Get viewport content
-	content := m.viewportMgr.GetViewport().View()
+	// 2. Render ONLY the visible rows based on viewport state (Virtualization)
+	// We do NOT use m.viewportMgr.GetViewport().View() for the content because
+	// we only want to render the lines that are currently on screen to avoid lag.
+	content := m.renderVisibleContent()
 
 	// 3. Combine: Header + Content
 	fullContent := lipgloss.JoinVertical(lipgloss.Left, header, content)
@@ -194,33 +224,71 @@ func (m Pane) View() string {
 	return styles.RenderBox("Current Layer Contents", m.width, m.height, fullContent, m.focused)
 }
 
-// updateContent regenerates the viewport content
+// updateContent refreshes the cache and updates the viewport scroll bounds
 func (m *Pane) updateContent() {
-	if m.treeVM == nil {
+	if m.treeVM == nil || m.treeVM.ViewTree == nil {
+		m.visibleNodes = nil
 		m.viewportMgr.SetContent("No tree data")
 		return
 	}
 
-	content := m.renderTreeContent()
-	if content == "" {
-		content = "(File tree rendering in progress...)"
+	// 1. Cache the visible nodes structure (fast pointer traversal)
+	m.visibleNodes = CollectVisibleNodes(m.treeVM.ViewTree.Root)
+
+	// 2. Set "dummy" content to the viewport to establish correct scrollbar math
+	// We don't render the text here. We just give the viewport a string with
+	// the correct number of newlines so it knows how tall the content *would* be.
+	// This makes PageDown/Up and scrolling work correctly.
+	count := len(m.visibleNodes)
+	if count > 0 {
+		dummyContent := strings.Repeat("\n", count-1)
+		m.viewportMgr.SetContent(dummyContent)
+	} else {
+		m.viewportMgr.SetContent("")
 	}
-	m.viewportMgr.SetContent(content)
 }
 
-// renderTreeContent generates the tree content
-func (m *Pane) renderTreeContent() string {
-	if m.treeVM == nil || m.treeVM.ViewTree == nil {
-		return "No tree data"
+// renderVisibleContent generates strings only for the rows currently visible in the viewport
+func (m *Pane) renderVisibleContent() string {
+	if len(m.visibleNodes) == 0 {
+		return "No files"
 	}
 
+	// Get current scroll window
+	yOffset := m.viewportMgr.GetYOffset()
+	height := m.viewportMgr.GetHeight()
+
+	// Calculate slice bounds
+	start := yOffset
+	end := start + height
+
+	// Clamp bounds
+	if start < 0 {
+		start = 0
+	}
+	if start > len(m.visibleNodes) {
+		start = len(m.visibleNodes)
+	}
+	if end > len(m.visibleNodes) {
+		end = len(m.visibleNodes)
+	}
+
+	// Render loop - only for visible items (e.g., 20 items instead of 10,000)
 	var sb strings.Builder
-	visibleNodes := CollectVisibleNodes(m.treeVM.ViewTree.Root)
 	viewportWidth := m.viewportMgr.GetViewport().Width
 
-	for i, vn := range visibleNodes {
+	for i := start; i < end; i++ {
+		vn := m.visibleNodes[i]
 		isSelected := (i == m.selection.GetTreeIndex())
 		RenderNodeWithCursor(&sb, vn.Node, vn.Prefix, isSelected, viewportWidth)
+	}
+
+	// If the rendered content is shorter than the viewport (e.g. end of list),
+	// pad with empty lines to maintain box size
+	renderedLines := end - start
+	if renderedLines < height {
+		// padding := height - renderedLines
+		// sb.WriteString(strings.Repeat("\n", padding))
 	}
 
 	return sb.String()
@@ -232,11 +300,16 @@ func (m *Pane) toggleCollapse() tea.Cmd {
 		return nil
 	}
 
-	visibleNodes := CollectVisibleNodes(m.treeVM.ViewTree.Root)
+	// Use cached nodes for index lookup
+	if len(m.visibleNodes) == 0 {
+		return nil
+	}
 
 	treeIndex := m.selection.GetTreeIndex()
-	if treeIndex >= len(visibleNodes) {
-		m.selection.MoveToIndex(len(visibleNodes) - 1)
+
+	// Bounds check
+	if treeIndex >= len(m.visibleNodes) {
+		m.selection.MoveToIndex(len(m.visibleNodes) - 1)
 		treeIndex = m.selection.GetTreeIndex()
 	}
 	if treeIndex < 0 {
@@ -244,14 +317,14 @@ func (m *Pane) toggleCollapse() tea.Cmd {
 		treeIndex = m.selection.GetTreeIndex()
 	}
 
-	if treeIndex < len(visibleNodes) {
-		selectedNode := visibleNodes[treeIndex].Node
+	if treeIndex < len(m.visibleNodes) {
+		selectedNode := m.visibleNodes[treeIndex].Node
 
 		if selectedNode.Data.FileInfo.IsDir() {
 			// Toggle the collapsed flag directly on the node
 			selectedNode.Data.ViewInfo.Collapsed = !selectedNode.Data.ViewInfo.Collapsed
 
-			// Just refresh the UI - don't call treeVM.Update() as it rebuilds the tree
+			// Refresh content (re-collect nodes and update viewport bounds)
 			m.updateContent()
 
 			return func() tea.Msg {

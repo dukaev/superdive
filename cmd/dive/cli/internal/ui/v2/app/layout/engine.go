@@ -2,10 +2,13 @@ package layout
 
 // Layout constants for viewport calculations
 const (
-	BorderHeight        = 2 // Top + Bottom border lines
-	HeaderHeight        = 2 // Title line + newline/padding separator
+	BorderHeight        = 2                           // Top + Bottom border lines
+	HeaderHeight        = 2                           // Title line + newline/padding separator
 	BoxContentPadding   = BorderHeight + HeaderHeight // Total padding inside RenderBox
-	ContentVisualOffset = 3 // Offset for mouse hit testing: 1 border + 1 title + 1 padding
+	ContentVisualOffset = 3                           // Offset for mouse hit testing: 1 border + 1 title + 1 padding
+
+	// Additional header heights for specific panes
+	TreeTableHeaderHeight = 3 // "Name   Size   Permissions" table header
 )
 
 // Result stores calculated pane dimensions
@@ -54,7 +57,7 @@ func (e *Engine) Calculate(width, height int) Result {
 
 	// Calculate heights (left column)
 	// Layers: flexible, Image: flexible, Details: at least 12 lines
-	result.DetailsHeight = 12  // Minimum for command display
+	result.DetailsHeight = 12 // Minimum for command display
 
 	if result.DetailsHeight > availableHeight/3 {
 		result.DetailsHeight = availableHeight / 3

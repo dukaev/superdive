@@ -1,5 +1,10 @@
 package filetree
 
+import (
+	"os"
+	"strings"
+)
+
 // Column width constants for metadata display
 const (
 	PermWidth   = 11 // "-rwxr-xr-x"
@@ -10,17 +15,27 @@ const (
 
 // FormatPermissions converts os.FileMode to Unix permission string (e.g. "-rwxr-xr-x")
 func FormatPermissions(mode interface{}) string {
-	var m uint32
 	switch v := mode.(type) {
+	case os.FileMode:
+		// Use Go's built-in String() method for os.FileMode
+		// It produces strings like "-rwxr-xr-x", "drwxr-xr-x", "lrwxrwxrwx"
+		str := v.String()
+		// Ensure fixed width of 10 characters
+		if len(str) < 10 {
+			return str + strings.Repeat(" ", 10-len(str))
+		}
+		return str
 	case uint32:
-		m = v
+		return formatRawMode(v)
 	case int:
-		m = uint32(v)
+		return formatRawMode(uint32(v))
 	default:
 		return "----------"
 	}
+}
 
-	// Convert to string representation
+// formatRawMode formats a raw uint32 mode value (for backward compatibility)
+func formatRawMode(m uint32) string {
 	perms := []rune("----------")
 
 	// File type

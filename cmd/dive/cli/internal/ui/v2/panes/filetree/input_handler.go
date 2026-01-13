@@ -8,13 +8,14 @@ import (
 
 // InputHandler handles keyboard and mouse input events
 type InputHandler struct {
-	navigation  *Navigation
-	selection   *Selection
-	viewportMgr *ViewportManager
-	treeVM      *viewmodel.FileTreeViewModel
-	focused     bool
-	width       int
-	height      int
+	navigation       *Navigation
+	selection        *Selection
+	viewportMgr      *ViewportManager
+	treeVM           *viewmodel.FileTreeViewModel
+	toggleCollapseFn func() tea.Cmd // Callback for toggle collapse operation
+	focused          bool
+	width            int
+	height           int
 }
 
 // NewInputHandler creates a new input handler
@@ -39,6 +40,16 @@ func (h *InputHandler) SetFocused(focused bool) {
 func (h *InputHandler) SetSize(width, height int) {
 	h.width = width
 	h.height = height
+}
+
+// SetToggleCollapseFunc sets the callback function for toggle collapse operation
+func (h *InputHandler) SetToggleCollapseFunc(fn func() tea.Cmd) {
+	h.toggleCollapseFn = fn
+}
+
+// SetTreeVM updates the tree viewmodel reference
+func (h *InputHandler) SetTreeVM(treeVM *viewmodel.FileTreeViewModel) {
+	h.treeVM = treeVM
 }
 
 // HandleKeyPress processes keyboard input
@@ -129,6 +140,12 @@ func (h *InputHandler) HandleMouseClick(msg tea.MouseMsg) tea.Cmd {
 
 // toggleCollapse toggles the current node's collapse state
 func (h *InputHandler) toggleCollapse() tea.Cmd {
+	// Use callback if available (delegates to Pane.toggleCollapse with cached nodes)
+	if h.toggleCollapseFn != nil {
+		return h.toggleCollapseFn()
+	}
+
+	// Fallback to old implementation if callback not set
 	if h.treeVM == nil || h.treeVM.ViewTree == nil {
 		return nil
 	}
