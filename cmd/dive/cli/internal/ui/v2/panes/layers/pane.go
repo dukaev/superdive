@@ -11,8 +11,11 @@ import (
 
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1/viewmodel"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/components"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
+	"github.com/wagoodman/dive/dive/filetree"
+	"github.com/wagoodman/dive/dive/image"
 )
 
 // LayerChangedMsg is sent when the active layer changes
@@ -20,25 +23,54 @@ type LayerChangedMsg struct {
 	LayerIndex int
 }
 
+// ShowLayerDetailMsg is sent to show the layer detail modal
+type ShowLayerDetailMsg struct {
+	Layer *image.Layer
+}
+
+// Define layout constants to ensure click detection matches rendering
+const (
+	ColWidthPrefix = 1  // " "
+	ColWidthID     = 12
+	ColWidthSize   = 9
+	ColPadding     = 1
+	// Calculation: Prefix(1) + ID(12) + Pad(1) + Size(9) + Pad(1)
+	StatsStartOffset = ColWidthPrefix + ColWidthID + ColPadding + ColWidthSize + ColPadding
+)
+
 // Pane manages the layers list
 type Pane struct {
-	focused    bool
-	width      int
-	height     int
-	layerVM    *viewmodel.LayerSetState
-	viewport   viewport.Model
-	layerIndex int
+	focused          bool
+	width            int
+	height           int
+	layerVM          *viewmodel.LayerSetState
+	comparer         *filetree.Comparer // For computing layer comparison trees
+	viewport         viewport.Model
+	layerIndex       int
+	statsRows        []components.FileStatsRow // Stats row for each layer
 }
 
 // New creates a new layers pane
-func New(layerVM *viewmodel.LayerSetState) Pane {
+func New(layerVM *viewmodel.LayerSetState, comparer filetree.Comparer) Pane {
 	vp := viewport.New(80, 20)
+
+	// Initialize stats rows
+	var statsRows []components.FileStatsRow
+	if layerVM != nil && len(layerVM.Layers) > 0 {
+		statsRows = make([]components.FileStatsRow, len(layerVM.Layers))
+		for i := range layerVM.Layers {
+			statsRows[i] = components.NewFileStatsRow()
+		}
+	}
+
 	p := Pane{
 		layerVM:    layerVM,
+		comparer:   &comparer,
 		viewport:   vp,
 		layerIndex: 0,
 		width:      80,
 		height:     20,
+		statsRows:  statsRows,
 	}
 	// IMPORTANT: Generate content immediately so viewport is not empty on startup
 	p.updateContent()
@@ -123,6 +155,13 @@ func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.moveUp())
 		case "down", "j":
 			cmds = append(cmds, m.moveDown())
+		case " ":
+			// Show layer detail modal
+			if m.layerVM != nil && m.layerIndex >= 0 && m.layerIndex < len(m.layerVM.Layers) {
+				cmds = append(cmds, func() tea.Msg {
+					return ShowLayerDetailMsg{Layer: m.layerVM.Layers[m.layerIndex]}
+				})
+			}
 		}
 
 	case tea.MouseMsg:
@@ -189,10 +228,12 @@ func (m *Pane) moveDown() tea.Cmd {
 
 // handleClick processes a mouse click
 func (m *Pane) handleClick(x, y int) tea.Cmd {
+	// 1. Basic Bounds Check
 	if x < 0 || x >= m.width || y < 0 {
 		return nil
 	}
 
+	// 2. Adjust Y for Viewport scrolling and Header
 	relativeY := y - layout.ContentVisualOffset
 	if relativeY < 0 || relativeY >= m.viewport.Height {
 		return nil
@@ -203,6 +244,31 @@ func (m *Pane) handleClick(x, y int) tea.Cmd {
 		return nil
 	}
 
+	// 3. Adjust X for Border
+	// The pane is rendered with RenderBox, which adds 1 char border on the left.
+	// So the content technically starts at X=1 relative to the pane.
+	// We subtract 1 to get the X coordinate relative to the *content*.
+	contentX := x - 1
+	if contentX < 0 {
+		return nil
+	}
+
+	// 4. Check if click is in stats area
+	// We use the shared constant StatsStartOffset to ensure math matches GenerateContent
+	if targetIndex < len(m.statsRows) {
+		partType, found := m.statsRows[targetIndex].GetPartAtPosition(contentX, StatsStartOffset)
+		if found {
+			// Click on a stats part - toggle that specific part
+			part := m.statsRows[targetIndex].GetPart(partType)
+			if part != nil {
+				part.ToggleActive()
+				m.updateContent()
+				return nil
+			}
+		}
+	}
+
+	// 5. Click outside stats - select layer
 	return m.SetLayerIndex(targetIndex)
 }
 
@@ -219,37 +285,80 @@ func (m *Pane) updateContent() {
 
 // generateContent creates the layers content
 func (m *Pane) generateContent() string {
-	width := m.width - 2
-
-	const (
-		idWidth   = 12
-		sizeWidth = 9
-		spaces    = 4
-	)
+	width := m.width - 2 // Viewport width (without panel borders)
 
 	var fullContent strings.Builder
 
 	for i, layer := range m.layerVM.Layers {
-		prefix := "  "
+		prefix := " "
 		style := lipgloss.NewStyle()
 
 		if i == m.layerIndex {
-			prefix = "● "
+			// No bullet, just color highlighting
 			style = styles.SelectedLayerStyle
 		}
 
+		// Format ID
 		id := layer.Id
-		if len(id) > idWidth {
-			id = id[:idWidth]
+		if len(id) > ColWidthID {
+			id = id[:ColWidthID]
 		}
 
+		// Format Size
 		size := utils.FormatSize(layer.Size)
 
+		// Update and get stats from component
+		statsStr := ""
+		statsVisualWidth := 9 // Default approximate width
+		if i < len(m.statsRows) {
+			// Use comparer to get the comparison tree for this layer
+			// For layer i, we want to show changes from layer i-1 to i (or 0 to i for first layer)
+			var treeToCompare *filetree.FileTree
+			if m.comparer != nil {
+				// Get tree for comparing previous layer (or 0) to current layer
+				// This follows the CompareSingleLayer mode logic
+				bottomTreeStart := 0
+				bottomTreeStop := i - 1
+				if bottomTreeStop < 0 {
+					bottomTreeStop = i
+				}
+				topTreeStart := i
+				topTreeStop := i
+
+				key := filetree.NewTreeIndexKey(bottomTreeStart, bottomTreeStop, topTreeStart, topTreeStop)
+				comparisonTree, err := m.comparer.GetTree(key)
+				if err == nil && comparisonTree != nil {
+					treeToCompare = comparisonTree
+				}
+			}
+
+			// Fallback to layer.Tree if comparer didn't work
+			if treeToCompare == nil {
+				treeToCompare = layer.Tree
+			}
+
+			stats := utils.CalculateFileStats(treeToCompare)
+			m.statsRows[i].SetStats(stats)
+			statsStr = m.statsRows[i].Render()
+
+			// Calculate total visual width for command truncation math
+			addedW := m.statsRows[i].GetAdded().GetVisualWidth()
+			modW := m.statsRows[i].GetModified().GetVisualWidth()
+			remW := m.statsRows[i].GetRemoved().GetVisualWidth()
+			statsVisualWidth = addedW + 1 + modW + 1 + remW // +1 for spaces
+		}
+
+		// Clean command from newlines
 		rawCmd := strings.ReplaceAll(layer.Command, "\n", " ")
 		rawCmd = strings.TrimSpace(rawCmd)
 
-		availableCmdWidth := width - 2 - idWidth - spaces - sizeWidth
-		if availableCmdWidth < 5 {
+		// Calculate available space for command
+		// Logic must match StatsStartOffset constants
+		// Used = Prefix(1) + ID(12) + Pad(1) + Size(9) + Pad(1) + StatsWidth + Pad(1)
+		usedWidth := StatsStartOffset + statsVisualWidth + 1
+
+		availableCmdWidth := width - usedWidth
+		if availableCmdWidth < 0 {
 			availableCmdWidth = 0
 		}
 
@@ -258,12 +367,22 @@ func (m *Pane) generateContent() string {
 			cmd = runewidth.Truncate(rawCmd, availableCmdWidth, "...")
 		}
 
-		text := fmt.Sprintf("%s%-*s  %*s  %s", prefix, idWidth, id, sizeWidth, size, cmd)
-
-		maxLineWidth := width
-		if runewidth.StringWidth(text) > maxLineWidth {
-			text = runewidth.Truncate(text, maxLineWidth, "")
-		}
+		// Build the line using strict column widths
+		// %-1s  = Prefix
+		// %-*s  = ID (left align, width 12)
+		// " "   = Padding
+		// %*s   = Size (right align, width 9)
+		// " "   = Padding
+		// %s    = Stats
+		// " "   = Padding
+		// %s    = Command
+		text := fmt.Sprintf("%-1s%-*s %*s %s %s",
+			prefix,
+			ColWidthID, id,
+			ColWidthSize, size,
+			statsStr,
+			cmd,
+		)
 
 		fullContent.WriteString(style.Render(text))
 		fullContent.WriteString("\n")

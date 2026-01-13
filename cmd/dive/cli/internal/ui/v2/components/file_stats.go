@@ -1,0 +1,240 @@
+package components
+
+import (
+	"fmt"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
+)
+
+// Re-export FileStats from utils package
+type FileStats = utils.FileStats
+
+// StatsPartType represents which part of the stats this is
+type StatsPartType int
+
+const (
+	StatsPartAdded StatsPartType = iota
+	StatsPartModified
+	StatsPartRemoved
+)
+
+// StatsPartRenderer handles rendering a single part of file statistics with interactive state
+type StatsPartRenderer struct {
+	partType StatsPartType
+	value    int
+	active   bool
+}
+
+// NewStatsPartRenderer creates a new stats part renderer
+func NewStatsPartRenderer(partType StatsPartType, value int) StatsPartRenderer {
+	return StatsPartRenderer{
+		partType: partType,
+		value:    value,
+		active:   false,
+	}
+}
+
+// SetValue updates the value
+func (r *StatsPartRenderer) SetValue(value int) {
+	r.value = value
+}
+
+// GetValue returns the current value
+func (r *StatsPartRenderer) GetValue() int {
+	return r.value
+}
+
+// SetActive sets the active state
+func (r *StatsPartRenderer) SetActive(active bool) {
+	r.active = active
+}
+
+// IsActive returns whether the component is active
+func (r *StatsPartRenderer) IsActive() bool {
+	return r.active
+}
+
+// ToggleActive toggles the active state
+func (r *StatsPartRenderer) ToggleActive() {
+	r.active = !r.active
+}
+
+// GetType returns the type of this stats part
+func (r *StatsPartRenderer) GetType() StatsPartType {
+	return r.partType
+}
+
+// Render renders the stats part as a string
+func (r *StatsPartRenderer) Render() string {
+	var prefix string
+	switch r.partType {
+	case StatsPartAdded:
+		prefix = "+"
+	case StatsPartModified:
+		prefix = "~"
+	case StatsPartRemoved:
+		prefix = "-"
+	}
+
+	text := fmt.Sprintf("%s%d", prefix, r.value)
+
+	if r.active {
+		return r.activeStyle().Render(text)
+	}
+
+	return r.defaultStyle().Render(text)
+}
+
+// defaultStyle returns the style for inactive state
+func (r *StatsPartRenderer) defaultStyle() lipgloss.Style {
+	switch r.partType {
+	case StatsPartAdded:
+		return styles.FileStatsAddedStyle
+	case StatsPartModified:
+		return styles.FileStatsModifiedStyle
+	case StatsPartRemoved:
+		return styles.FileStatsRemovedStyle
+	default:
+		return lipgloss.NewStyle()
+	}
+}
+
+// activeStyle returns the style for active state
+func (r *StatsPartRenderer) activeStyle() lipgloss.Style {
+	var bgColor lipgloss.Color
+	switch r.partType {
+	case StatsPartAdded:
+		bgColor = styles.SuccessColor
+	case StatsPartModified:
+		bgColor = styles.WarningColor
+	case StatsPartRemoved:
+		bgColor = styles.ErrorColor
+	default:
+		bgColor = styles.PrimaryColor
+	}
+
+	// FIX: Removed Padding(0, 1) to prevent text shifting
+	// The background color is enough indication of state
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Background(bgColor).
+		Bold(true)
+}
+
+// GetVisualWidth returns the visual width of the rendered part (without ANSI codes)
+func (r *StatsPartRenderer) GetVisualWidth() int {
+	// Format: "+N" or "~N" or "-N" where N is the value
+	return 1 + len(fmt.Sprintf("%d", r.value))
+}
+
+// FileStatsRow manages a row with three stats parts
+type FileStatsRow struct {
+	added    StatsPartRenderer
+	modified StatsPartRenderer
+	removed  StatsPartRenderer
+}
+
+// NewFileStatsRow creates a new file stats row
+func NewFileStatsRow() FileStatsRow {
+	return FileStatsRow{
+		added:    NewStatsPartRenderer(StatsPartAdded, 0),
+		modified: NewStatsPartRenderer(StatsPartModified, 0),
+		removed:  NewStatsPartRenderer(StatsPartRemoved, 0),
+	}
+}
+
+// SetStats updates all statistics
+func (r *FileStatsRow) SetStats(stats FileStats) {
+	r.added.SetValue(stats.Added)
+	r.modified.SetValue(stats.Modified)
+	r.removed.SetValue(stats.Removed)
+}
+
+// GetStats returns the current statistics
+func (r *FileStatsRow) GetStats() FileStats {
+	return FileStats{
+		Added:    r.added.GetValue(),
+		Modified: r.modified.GetValue(),
+		Removed:  r.removed.GetValue(),
+	}
+}
+
+// GetPart returns the specific part renderer
+func (r *FileStatsRow) GetPart(partType StatsPartType) *StatsPartRenderer {
+	switch partType {
+	case StatsPartAdded:
+		return &r.added
+	case StatsPartModified:
+		return &r.modified
+	case StatsPartRemoved:
+		return &r.removed
+	default:
+		return nil
+	}
+}
+
+// GetAdded returns the added part renderer
+func (r *FileStatsRow) GetAdded() *StatsPartRenderer {
+	return &r.added
+}
+
+// GetModified returns the modified part renderer
+func (r *FileStatsRow) GetModified() *StatsPartRenderer {
+	return &r.modified
+}
+
+// GetRemoved returns the removed part renderer
+func (r *FileStatsRow) GetRemoved() *StatsPartRenderer {
+	return &r.removed
+}
+
+// DeactivateAll deactivates all parts
+func (r *FileStatsRow) DeactivateAll() {
+	r.added.SetActive(false)
+	r.modified.SetActive(false)
+	r.removed.SetActive(false)
+}
+
+// Render renders the complete stats row as a string
+func (r *FileStatsRow) Render() string {
+	// Join with spaces
+	addedStr := r.added.Render()
+	modifiedStr := r.modified.Render()
+	removedStr := r.removed.Render()
+
+	return fmt.Sprintf("%s %s %s", addedStr, modifiedStr, removedStr)
+}
+
+// GetPartPositions returns the X positions and widths of each part
+// Returns: (addedX, addedWidth, modifiedX, modifiedWidth, removedX, removedWidth)
+func (r *FileStatsRow) GetPartPositions(startX int) (int, int, int, int, int, int) {
+	addedWidth := r.added.GetVisualWidth()
+	modifiedWidth := r.modified.GetVisualWidth()
+	removedWidth := r.removed.GetVisualWidth()
+
+	addedX := startX
+	modifiedX := addedX + addedWidth + 1 // +1 for space
+	removedX := modifiedX + modifiedWidth + 1 // +1 for space
+
+	return addedX, addedWidth, modifiedX, modifiedWidth, removedX, removedWidth
+}
+
+// GetPartAtPosition returns which part is at the given X position
+// Returns (partType, found)
+func (r *FileStatsRow) GetPartAtPosition(x int, startX int) (StatsPartType, bool) {
+	addedX, addedWidth, modifiedX, modifiedWidth, removedX, removedWidth := r.GetPartPositions(startX)
+
+	if x >= addedX && x < addedX+addedWidth {
+		return StatsPartAdded, true
+	}
+	if x >= modifiedX && x < modifiedX+modifiedWidth {
+		return StatsPartModified, true
+	}
+	if x >= removedX && x < removedX+removedWidth {
+		return StatsPartRemoved, true
+	}
+
+	return -1, false
+}

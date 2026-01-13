@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/viewport"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1/viewmodel"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
@@ -31,20 +32,44 @@ type Pane struct {
 	width     int
 	height    int
 	treeVM    *viewmodel.FileTreeViewModel
-	viewport  viewport.Model
-	treeIndex int
+
+	// Components
+	selection   *Selection
+	viewportMgr *ViewportManager
+	navigation  *Navigation
+	inputHandler *InputHandler
 }
 
 // New creates a new tree pane
 func New(treeVM *viewmodel.FileTreeViewModel) Pane {
-	vp := viewport.New(80, 20)
+	// Initialize components
+	selection := NewSelection()
+	viewportMgr := NewViewportManager(80, 20)
+	navigation := NewNavigation(selection, viewportMgr)
+	inputHandler := NewInputHandler(navigation, selection, viewportMgr, treeVM)
+
 	p := Pane{
-		treeVM:    treeVM,
-		viewport:  vp,
-		treeIndex: 0,
-		width:     80,
-		height:    20,
+		treeVM:       treeVM,
+		selection:    selection,
+		viewportMgr:  viewportMgr,
+		navigation:   navigation,
+		inputHandler: inputHandler,
+		focused:      false,
+		width:        80,
+		height:       20,
 	}
+
+	// Set up callbacks
+	p.navigation.SetVisibleNodesFunc(func() []VisibleNode {
+		if p.treeVM == nil || p.treeVM.ViewTree == nil {
+			return nil
+		}
+		return CollectVisibleNodes(p.treeVM.ViewTree.Root)
+	})
+
+	p.navigation.SetRefreshFunc(p.updateContent)
+	p.navigation.SetToggleCollapseFunc(p.toggleCollapse)
+
 	// IMPORTANT: Generate content immediately so viewport is not empty on startup
 	p.updateContent()
 	return p
@@ -54,6 +79,7 @@ func New(treeVM *viewmodel.FileTreeViewModel) Pane {
 func (m *Pane) SetSize(width, height int) {
 	m.width = width
 	m.height = height
+	m.inputHandler.SetSize(width, height)
 
 	viewportWidth := width - 2
 	viewportHeight := height - layout.BoxContentPadding
@@ -61,8 +87,7 @@ func (m *Pane) SetSize(width, height int) {
 		viewportHeight = 0
 	}
 
-	m.viewport.Width = viewportWidth
-	m.viewport.Height = viewportHeight
+	m.viewportMgr.SetSize(viewportWidth, viewportHeight)
 
 	// CRITICAL: Regenerate content with new width to prevent soft wrap
 	// Without this, long paths will wrap when window is resized
@@ -72,30 +97,32 @@ func (m *Pane) SetSize(width, height int) {
 // SetTreeVM updates the tree viewmodel
 func (m *Pane) SetTreeVM(treeVM *viewmodel.FileTreeViewModel) {
 	m.treeVM = treeVM
-	m.treeIndex = 0
-	m.viewport.GotoTop()
+	m.selection.SetTreeIndex(0)
+	m.viewportMgr.GotoTop()
 	m.updateContent()
 }
 
 // SetTreeIndex sets the current tree index
 func (m *Pane) SetTreeIndex(index int) {
-	m.treeIndex = index
-	m.syncScroll()
+	m.selection.SetTreeIndex(index)
+	m.navigation.SyncScroll()
 }
 
 // GetTreeIndex returns the current tree index
 func (m *Pane) GetTreeIndex() int {
-	return m.treeIndex
+	return m.selection.GetTreeIndex()
 }
 
 // Focus sets the pane as active
 func (m *Pane) Focus() {
 	m.focused = true
+	m.inputHandler.SetFocused(true)
 }
 
 // Blur sets the pane as inactive
 func (m *Pane) Blur() {
 	m.focused = false
+	m.inputHandler.SetFocused(false)
 }
 
 // IsFocused returns true if the pane is focused
@@ -115,31 +142,30 @@ func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if !m.focused {
-			return m, nil
-		}
-
-		switch msg.String() {
-		case "up", "k":
-			cmds = append(cmds, m.moveUp())
-		case "down", "j":
-			cmds = append(cmds, m.moveDown())
-		case "enter", " ":
-			cmds = append(cmds, m.toggleCollapse())
+		cmds, consumed := m.inputHandler.HandleKeyPress(msg)
+		if consumed {
+			// Don't pass to viewport
+			return m, tea.Batch(cmds...)
 		}
 
 	case tea.MouseMsg:
 		if msg.Action == tea.MouseActionPress {
+			var keyCmds []tea.Cmd
+
 			if msg.Button == tea.MouseButtonWheelUp {
-				cmds = append(cmds, m.moveUp())
+				keyCmds = append(keyCmds, m.navigation.MoveUp())
 			} else if msg.Button == tea.MouseButtonWheelDown {
-				cmds = append(cmds, m.moveDown())
+				keyCmds = append(keyCmds, m.navigation.MoveDown())
 			}
 
 			if msg.Button == tea.MouseButtonLeft {
-				if cmd := m.handleClick(msg.X, msg.Y); cmd != nil {
-					cmds = append(cmds, cmd)
+				if cmd := m.inputHandler.HandleMouseClick(msg); cmd != nil {
+					keyCmds = append(keyCmds, cmd)
 				}
+			}
+
+			if len(keyCmds) > 0 {
+				return m, tea.Batch(keyCmds...)
 			}
 		}
 
@@ -147,8 +173,8 @@ func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateContent()
 	}
 
-	var cmd tea.Cmd
-	m.viewport, cmd = m.viewport.Update(msg)
+	// Always update viewport
+	_, cmd := m.viewportMgr.Update(msg)
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
@@ -156,134 +182,22 @@ func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the pane
 func (m Pane) View() string {
-	content := m.viewport.View()
-	return styles.RenderBox("Current Layer Contents", m.width, m.height, content, m.focused)
-}
+	// 1. Generate static header
+	header := RenderHeader(m.width)
 
-// moveUp moves selection up
-func (m *Pane) moveUp() tea.Cmd {
-	if m.treeIndex > 0 {
-		m.treeIndex--
-		m.syncScroll()
-	}
-	return nil
-}
+	// 2. Get viewport content
+	content := m.viewportMgr.GetViewport().View()
 
-// moveDown moves selection down
-func (m *Pane) moveDown() tea.Cmd {
-	if m.treeVM == nil || m.treeVM.ViewTree == nil {
-		return nil
-	}
+	// 3. Combine: Header + Content
+	fullContent := lipgloss.JoinVertical(lipgloss.Left, header, content)
 
-	visibleNodes := collectVisibleNodes(m.treeVM.ViewTree.Root)
-	if m.treeIndex < len(visibleNodes)-1 {
-		m.treeIndex++
-		m.syncScroll()
-	}
-	return nil
-}
-
-// toggleCollapse toggles the current node's collapse state
-func (m *Pane) toggleCollapse() tea.Cmd {
-	if m.treeVM == nil || m.treeVM.ViewTree == nil {
-		return nil
-	}
-
-	visibleNodes := collectVisibleNodes(m.treeVM.ViewTree.Root)
-
-	if m.treeIndex >= len(visibleNodes) {
-		m.treeIndex = len(visibleNodes) - 1
-	}
-	if m.treeIndex < 0 {
-		m.treeIndex = 0
-	}
-
-	if m.treeIndex < len(visibleNodes) {
-		selectedNode := visibleNodes[m.treeIndex].Node
-
-		if selectedNode.Data.FileInfo.IsDir() {
-			selectedNode.Data.ViewInfo.Collapsed = !selectedNode.Data.ViewInfo.Collapsed
-			_ = m.treeVM.Update(nil, m.width, m.height)
-			m.updateContent()
-
-			return func() tea.Msg {
-				return NodeToggledMsg{NodeIndex: m.treeIndex}
-			}
-		}
-	}
-
-	return nil
-}
-
-// handleClick processes a mouse click
-func (m *Pane) handleClick(x, y int) tea.Cmd {
-	if x < 0 || x >= m.width || y < 0 {
-		return nil
-	}
-
-	relativeY := y - layout.ContentVisualOffset
-	if relativeY < 0 || relativeY >= m.viewport.Height {
-		return nil
-	}
-
-	if m.treeVM == nil || m.treeVM.ViewTree == nil {
-		return nil
-	}
-
-	visibleNodes := collectVisibleNodes(m.treeVM.ViewTree.Root)
-	targetIndex := relativeY + m.viewport.YOffset
-
-	if targetIndex >= 0 && targetIndex < len(visibleNodes) {
-		if m.treeIndex == targetIndex {
-			return m.toggleCollapse()
-		} else {
-			m.treeIndex = targetIndex
-			m.syncScroll()
-			return func() tea.Msg {
-				return TreeSelectionChangedMsg{NodeIndex: m.treeIndex}
-			}
-		}
-	}
-
-	return nil
-}
-
-// syncScroll ensures the cursor is always visible
-func (m *Pane) syncScroll() {
-	if m.treeVM == nil || m.treeVM.ViewTree == nil {
-		return
-	}
-
-	visibleNodes := collectVisibleNodes(m.treeVM.ViewTree.Root)
-	if len(visibleNodes) == 0 {
-		return
-	}
-
-	if m.treeIndex >= len(visibleNodes) {
-		m.treeIndex = len(visibleNodes) - 1
-	}
-	if m.treeIndex < 0 {
-		m.treeIndex = 0
-	}
-
-	visibleHeight := m.viewport.Height
-	if visibleHeight <= 0 {
-		return
-	}
-
-	if m.treeIndex < m.viewport.YOffset {
-		m.viewport.SetYOffset(m.treeIndex)
-	}
-
-	if m.treeIndex >= m.viewport.YOffset+visibleHeight {
-		m.viewport.SetYOffset(m.treeIndex - visibleHeight + 1)
-	}
+	return styles.RenderBox("Current Layer Contents", m.width, m.height, fullContent, m.focused)
 }
 
 // updateContent regenerates the viewport content
 func (m *Pane) updateContent() {
 	if m.treeVM == nil {
-		m.viewport.SetContent("No tree data")
+		m.viewportMgr.SetContent("No tree data")
 		return
 	}
 
@@ -291,7 +205,7 @@ func (m *Pane) updateContent() {
 	if content == "" {
 		content = "(File tree rendering in progress...)"
 	}
-	m.viewport.SetContent(content)
+	m.viewportMgr.SetContent(content)
 }
 
 // renderTreeContent generates the tree content
@@ -301,17 +215,55 @@ func (m *Pane) renderTreeContent() string {
 	}
 
 	var sb strings.Builder
-	visibleNodes := collectVisibleNodes(m.treeVM.ViewTree.Root)
+	visibleNodes := CollectVisibleNodes(m.treeVM.ViewTree.Root)
+	viewportWidth := m.viewportMgr.GetViewport().Width
 
 	for i, vn := range visibleNodes {
-		isSelected := (i == m.treeIndex)
-		renderNodeWithCursor(&sb, vn.Node, vn.Depth, isSelected, m.viewport.Width)
+		isSelected := (i == m.selection.GetTreeIndex())
+		RenderNodeWithCursor(&sb, vn.Node, vn.Prefix, isSelected, viewportWidth)
 	}
 
 	return sb.String()
 }
 
+// toggleCollapse toggles the current node's collapse state
+func (m *Pane) toggleCollapse() tea.Cmd {
+	if m.treeVM == nil || m.treeVM.ViewTree == nil {
+		return nil
+	}
+
+	visibleNodes := CollectVisibleNodes(m.treeVM.ViewTree.Root)
+
+	treeIndex := m.selection.GetTreeIndex()
+	if treeIndex >= len(visibleNodes) {
+		m.selection.MoveToIndex(len(visibleNodes) - 1)
+		treeIndex = m.selection.GetTreeIndex()
+	}
+	if treeIndex < 0 {
+		m.selection.SetTreeIndex(0)
+		treeIndex = m.selection.GetTreeIndex()
+	}
+
+	if treeIndex < len(visibleNodes) {
+		selectedNode := visibleNodes[treeIndex].Node
+
+		if selectedNode.Data.FileInfo.IsDir() {
+			// Toggle the collapsed flag directly on the node
+			selectedNode.Data.ViewInfo.Collapsed = !selectedNode.Data.ViewInfo.Collapsed
+
+			// Just refresh the UI - don't call treeVM.Update() as it rebuilds the tree
+			m.updateContent()
+
+			return func() tea.Msg {
+				return NodeToggledMsg{NodeIndex: treeIndex}
+			}
+		}
+	}
+
+	return nil
+}
+
 // GetViewport returns the underlying viewport
 func (m *Pane) GetViewport() *viewport.Model {
-	return &m.viewport
+	return m.viewportMgr.GetViewport()
 }

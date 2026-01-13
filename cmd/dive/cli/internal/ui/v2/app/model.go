@@ -12,11 +12,12 @@ import (
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1/viewmodel"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/keys"
-	filetree "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/filetree"
+	filetreepane "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/filetree"
 	imagepane "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/image"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/details"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/layers"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
+	filetree "github.com/wagoodman/dive/dive/filetree"
 	"github.com/wagoodman/dive/dive/image"
 )
 
@@ -85,13 +86,16 @@ type Model struct {
 	layersPane  layers.Pane
 	detailsPane details.Pane
 	imagePane   imagepane.Pane
-	treePane    filetree.Pane
+	treePane    filetreepane.Pane
 
 	// Active pane state
 	activePane Pane
 
 	// Filter state
 	filter FilterModel
+
+	// Layer detail modal
+	layerDetailModal LayerDetailModal
 
 	// Help and key bindings
 	keys keys.KeyMap
@@ -111,12 +115,15 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 
 	// Initialize filetree viewmodel
 	var treeVM *viewmodel.FileTreeViewModel
+	var comparer filetree.Comparer
 	if len(analysis.RefTrees) > 0 {
 		v1cfg := v1.Config{
 			Analysis:    analysis,
 			Content:     content,
 			Preferences: prefs,
 		}
+		// Get comparer for layer tree comparison
+		comparer, _ = v1cfg.TreeComparer()
 		// Note: we ignore the error here since treeVM.Update() will be called in Init()
 		treeVM, _ = viewmodel.NewFileTreeViewModel(v1cfg, 0)
 	}
@@ -128,35 +135,37 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 	h.Styles.Ellipsis = styles.StatusStyle
 
 	f := NewFilterModel()
+	layerDetailModal := NewLayerDetailModal()
 
 	// Create pane components
-	layersPane := layers.New(layerVM)
+	layersPane := layers.New(layerVM, comparer)
 	detailsPane := details.New()
 	imagePane := imagepane.New(&analysis)
-	treePane := filetree.New(treeVM)
+	treePane := filetreepane.New(treeVM)
 
 	// Set initial focus
 	layersPane.Focus()
 
 	// Create model with initial dimensions
 	model := Model{
-		analysis:    analysis,
-		content:     content,
-		prefs:       prefs,
-		ctx:         ctx,
-		layerVM:     layerVM,
-		treeVM:      treeVM,
-		layersPane:  layersPane,
-		detailsPane: detailsPane,
-		imagePane:   imagePane,
-		treePane:    treePane,
-		width:       80,
-		height:      24,
-		quitting:    false,
-		activePane:  PaneLayer,
-		keys:        keys.Keys,
-		help:        h,
-		filter:      f,
+		analysis:         analysis,
+		content:          content,
+		prefs:            prefs,
+		ctx:              ctx,
+		layerVM:          layerVM,
+		treeVM:           treeVM,
+		layersPane:       layersPane,
+		detailsPane:      detailsPane,
+		imagePane:        imagePane,
+		treePane:         treePane,
+		width:            80,
+		height:           24,
+		quitting:         false,
+		activePane:       PaneLayer,
+		keys:             keys.Keys,
+		help:             h,
+		filter:           f,
+		layerDetailModal: layerDetailModal,
 	}
 
 	// CRITICAL: Calculate initial layout and set pane sizes immediately
@@ -213,6 +222,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// If layer detail modal is visible, let it handle keys first
+		if m.layerDetailModal.IsVisible() {
+			var cmd tea.Cmd
+			m.layerDetailModal, cmd = m.layerDetailModal.Update(msg)
+			cmds = append(cmds, cmd)
+			break
+		}
+
 		// If filter is visible, let filter handle keys
 		if m.filter.IsVisible() {
 			var cmd tea.Cmd
@@ -238,7 +255,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case PaneTree:
 			newPane, cmd := m.treePane.Update(msg)
-			m.treePane = newPane.(filetree.Pane)
+			m.treePane = newPane.(filetreepane.Pane)
 			cmds = append(cmds, cmd)
 		}
 
@@ -268,13 +285,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.imagePane.Blur()
 		m.treePane.Blur()
 
-	case filetree.NodeToggledMsg:
+	case filetreepane.NodeToggledMsg:
 		// Tree node was toggled - tree pane already updated its content
 		// Nothing to do here
 
-	case filetree.RefreshTreeContentMsg:
+	case filetreepane.RefreshTreeContentMsg:
 		// Request to refresh tree content
 		m.treePane.SetTreeVM(m.treeVM)
+
+	case layers.ShowLayerDetailMsg:
+		// Show layer detail modal
+		m.layerDetailModal.Show(msg.Layer)
 
 	case tea.MouseMsg:
 		// Route mouse events to appropriate pane
@@ -316,8 +337,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		} else if inRightCol {
 			// Tree pane
-			newPane, cmd := m.treePane.Update(msg)
-			m.treePane = newPane.(filetree.Pane)
+			// CRITICAL FIX: Adjust X coordinate to be relative to tree pane
+			// Mouse events come in absolute coordinates (from window start)
+			// Tree pane expects local coordinates (from pane start, i.e., LeftWidth)
+			localMsg := msg
+			localMsg.X -= l.LeftWidth
+
+			newPane, cmd := m.treePane.Update(localMsg)
+			m.treePane = newPane.(filetreepane.Pane)
 			cmds = append(cmds, cmd)
 			if m.activePane != PaneTree {
 				m.activePane = PaneTree
@@ -425,6 +452,12 @@ func (m Model) View() string {
 		mainContent,
 		statusBar,
 	)
+
+	// Overlay layer detail modal if visible
+	if m.layerDetailModal.IsVisible() {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
+			m.layerDetailModal.View(m.width, m.height))
+	}
 
 	// Overlay filter modal if visible
 	if m.filter.IsVisible() {

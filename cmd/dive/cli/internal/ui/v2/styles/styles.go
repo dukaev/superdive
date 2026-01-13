@@ -56,6 +56,23 @@ var FileTreeModifiedStyle = lipgloss.NewStyle().
 		Foreground(WarningColor).
 		Bold(true)
 
+// --- File Stats Styles ---
+
+// FileStatsAddedStyle for added files count
+var FileStatsAddedStyle = lipgloss.NewStyle().
+		Foreground(SuccessColor).
+		Bold(true)
+
+// FileStatsModifiedStyle for modified files count
+var FileStatsModifiedStyle = lipgloss.NewStyle().
+		Foreground(WarningColor).
+		Bold(true)
+
+// FileStatsRemovedStyle for removed files count
+var FileStatsRemovedStyle = lipgloss.NewStyle().
+		Foreground(ErrorColor).
+		Bold(true)
+
 // --- Rendering Functions ---
 
 // RenderBox creates a bordered box with title and content
@@ -116,3 +133,13 @@ func RenderBox(title string, width, height int, content string, isSelected bool)
 func TruncateString(s string, maxLen int) string {
 	return runewidth.Truncate(s, maxLen, "...")
 }
+
+// --- File Tree Visual Styles ---
+
+// TreeGuideStyle for tree guide lines (│ ├ └)
+var TreeGuideStyle = lipgloss.NewStyle().
+	Foreground(DarkGrayColor)
+
+// MetaDataStyle for permissions, UID, and size (muted, less prominent)
+var MetaDataStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#6e6e73"))

@@ -139,13 +139,17 @@ func (m *Pane) updateContent() {
 func (m *Pane) generateContent() string {
 	width := m.width - 2 // Subtract borders
 
+	// Count files > 0 bytes
+	filesGreaterThanZeroKB := m.countFilesAboveZeroBytes()
+
 	// Header with statistics
 	headerText := fmt.Sprintf(
-		"Image name: %s\nTotal Image size: %s\nPotential wasted space: %s\nImage efficiency score: %.0f%%",
+		"Image name: %s\nTotal Image size: %s\nPotential wasted space: %s\nImage efficiency score: %.0f%%\nFiles > 0 KB total: %d",
 		m.analysis.Image,
 		utils.FormatSize(m.analysis.SizeBytes),
 		utils.FormatSize(m.analysis.WastedBytes),
 		m.analysis.Efficiency*100,
+		filesGreaterThanZeroKB,
 	)
 
 	// Table header
@@ -172,4 +176,21 @@ func (m *Pane) generateContent() string {
 	}
 
 	return fullContent.String()
+}
+
+// countFilesAboveZeroBytes counts the total number of files with size > 0 bytes across all inefficiencies
+func (m *Pane) countFilesAboveZeroBytes() int {
+	if m.analysis == nil {
+		return 0
+	}
+
+	count := 0
+	for _, ineff := range m.analysis.Inefficiencies {
+		for _, node := range ineff.Nodes {
+			if node.Size > 0 {
+				count++
+			}
+		}
+	}
+	return count
 }
