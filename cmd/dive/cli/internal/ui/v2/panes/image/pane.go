@@ -10,14 +10,20 @@ import (
 	"github.com/mattn/go-runewidth"
 
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
 	"github.com/wagoodman/dive/dive/image"
 )
 
+// FocusStateMsg is sent by parent to tell the pane whether it's focused or not
+type FocusStateMsg struct {
+	Focused bool
+}
+
 // Pane displays image-level statistics and inefficiencies
 type Pane struct {
-	focused  bool
+	focused  bool // Set by parent via FocusStateMsg, not by Focus()/Blur() methods
 	width    int
 	height   int
 	analysis *image.Analysis
@@ -62,21 +68,6 @@ func (m *Pane) SetAnalysis(analysis *image.Analysis) {
 	m.updateContent()
 }
 
-// Focus sets the pane as active
-func (m *Pane) Focus() {
-	m.focused = true
-}
-
-// Blur sets the pane as inactive
-func (m *Pane) Blur() {
-	m.focused = false
-}
-
-// IsFocused returns true if the pane is focused
-func (m *Pane) IsFocused() bool {
-	return m.focused
-}
-
 // Init initializes the pane
 func (m Pane) Init() tea.Cmd {
 	m.updateContent()
@@ -88,6 +79,17 @@ func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case common.LayoutMsg:
+		// Parent sends layout info instead of calling SetSize()
+		// Extract what we need from the message
+		m.SetSize(msg.LeftWidth, msg.ImageHeight)
+		return m, nil
+
+	case FocusStateMsg:
+		// Parent controls focus state - this is the Single Source of Truth pattern
+		m.focused = msg.Focused
+		return m, nil
+
 	case tea.KeyMsg:
 		if !m.focused {
 			return m, nil
@@ -164,12 +166,14 @@ func (m *Pane) generateContent() string {
 
 	if len(m.analysis.Inefficiencies) > 0 {
 		for _, file := range m.analysis.Inefficiencies {
-			row := fmt.Sprintf("%-5d %-12s %s", len(file.Nodes), utils.FormatSize(uint64(file.CumulativeSize)), file.Path)
-			if lipgloss.Width(row) > width {
-				row = runewidth.Truncate(row, width, "...")
+			if file.CumulativeSize > 0 {
+				row := fmt.Sprintf("%-5d %-12s %s", len(file.Nodes), utils.FormatSize(uint64(file.CumulativeSize)), file.Path)
+				if lipgloss.Width(row) > width {
+					row = runewidth.Truncate(row, width, "...")
+				}
+				fullContent.WriteString(styles.FileTreeModifiedStyle.Render(row))
+				fullContent.WriteString("\n")
 			}
-			fullContent.WriteString(styles.FileTreeModifiedStyle.Render(row))
-			fullContent.WriteString("\n")
 		}
 	} else {
 		fullContent.WriteString("No inefficiencies detected - great job!")

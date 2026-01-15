@@ -143,3 +143,7 @@ var TreeGuideStyle = lipgloss.NewStyle().
 // MetaDataStyle for permissions, UID, and size (muted, less prominent)
 var MetaDataStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#6e6e73"))
+
+// HelpStyle for help/instruction bar at the bottom (gray, muted)
+var HelpStyle = lipgloss.NewStyle().
+	Foreground(GrayColor)

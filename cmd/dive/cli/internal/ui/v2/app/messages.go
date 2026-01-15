@@ -1,5 +1,6 @@
 package app
 
+// Note: LocalMouseMsg is now defined in common package to avoid import cycles
 // Note: LayerChangedMsg is now defined in panes/layers package
 // Note: NodeToggledMsg, TreeSelectionChangedMsg, RefreshTreeContentMsg are now defined in panes/filetree package
 

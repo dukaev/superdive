@@ -15,10 +15,15 @@ func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix s
 	if node == nil {
 		return
 	}
+	row := RenderRow(node, prefix, isSelected, width)
+	sb.WriteString(row)
+	sb.WriteString("\n")
+}
 
-	// 1. Icon and base color
+// RenderRow renders a single tree node row using lipgloss.JoinHorizontal for clean layout
+func RenderRow(node *filetree.FileNode, prefix string, isSelected bool, width int) string {
+	// 1. Icon and color
 	icon := styles.IconFile
-	diffIcon := "" // 1 space (compact, like nvim-tree)
 	color := styles.DiffNormalColor
 
 	if node.Data.FileInfo.IsDir() {
@@ -31,7 +36,7 @@ func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix s
 		icon = styles.IconSymlink
 	}
 
-	// 2. Diff status (color only, no icons)
+	// 2. Diff status color
 	switch node.Data.DiffType {
 	case filetree.Added:
 		color = styles.DiffAddedColor
@@ -41,10 +46,9 @@ func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix s
 		color = styles.DiffModifiedColor
 	}
 
-	// 3. Format metadata (right-aligned)
+	// 3. Format metadata (fixed width, right-aligned)
 	perm := FormatPermissions(node.Data.FileInfo.Mode)
 
-	// Show UID:GID only if not the default root:root (0:0)
 	var uidGid string
 	if node.Data.FileInfo.Uid != 0 || node.Data.FileInfo.Gid != 0 {
 		uidGid = FormatUidGid(node.Data.FileInfo.Uid, node.Data.FileInfo.Gid)
@@ -52,13 +56,12 @@ func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix s
 		uidGid = "-"
 	}
 
-	// Size (empty for folders)
 	var sizeStr string
 	if !node.Data.FileInfo.IsDir() {
 		sizeStr = utils.FormatSize(uint64(node.Data.FileInfo.Size))
 	}
 
-	// Format name
+	// Format name with symlink target
 	name := node.Name
 	if name == "" {
 		name = "/"
@@ -67,97 +70,64 @@ func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix s
 		name += " → " + node.Data.FileInfo.Linkname
 	}
 
-	// 4. Build line with new order: cursor | tree-guides diff icon icon filename [metadata...]
-
-	// Cursor mark (same as Layers)
-	cursorMark := ""
+	// 4. Common background for selected state
+	bg := lipgloss.Color("")
 	if isSelected {
-		cursorMark = ""
+		bg = lipgloss.Color("#1C1C1E")
 	}
 
-	// Render tree guides (lines should be gray)
-	// If selected, apply background to tree guides too
-	styledPrefix := styles.TreeGuideStyle.Render(prefix)
+	// 5. Build styled components
+	// Tree guides (prefix)
+	prefixStyle := lipgloss.NewStyle().Foreground(styles.DarkGrayColor).Background(bg)
+	styledPrefix := prefixStyle.Render(prefix)
+
+	// Icon
+	iconStyle := lipgloss.NewStyle().Background(bg)
+	styledIcon := iconStyle.Render(icon)
+
+	// Filename with diff color
+	nameStyle := lipgloss.NewStyle().Foreground(color).Background(bg)
 	if isSelected {
-		styledPrefix = lipgloss.NewStyle().
-			Foreground(styles.DarkGrayColor).
-			Background(lipgloss.Color("#1C1C1E")).
-			Render(prefix)
+		nameStyle = nameStyle.Bold(true).Foreground(styles.PrimaryColor)
 	}
 
-	// Render filename with diff color
-	nameStyle := lipgloss.NewStyle().Foreground(color)
-	if isSelected {
-		// Use SelectedLayerStyle (with background and primary color)
-		nameStyle = nameStyle.Bold(true).Foreground(styles.PrimaryColor).Background(lipgloss.Color("#1C1C1E"))
-	}
-
-	// Render metadata with FIXED WIDTH columns for strict grid layout
-	// Each column gets exact width to ensure headers align with data
-
-	// Base metadata color
+	// 6. Render metadata cells (fixed width)
 	metaColor := lipgloss.Color("#6e6e73")
 
-	// If selected, use background color for metadata too
-	metaBg := lipgloss.Color("")
-	if isSelected {
-		metaBg = lipgloss.Color("#1C1C1E")
-	}
-
-	// Create cell styles with fixed width and right alignment
 	sizeCell := lipgloss.NewStyle().
 		Width(SizeWidth).
 		Align(lipgloss.Right).
 		Foreground(metaColor).
-		Background(metaBg)
+		Background(bg).
+		Render(sizeStr)
 
 	uidGidCell := lipgloss.NewStyle().
 		Width(UidGidWidth).
 		Align(lipgloss.Right).
 		Foreground(metaColor).
-		Background(metaBg)
+		Background(bg).
+		Render(uidGid)
 
 	permCell := lipgloss.NewStyle().
 		Width(PermWidth).
 		Align(lipgloss.Right).
 		Foreground(metaColor).
-		Background(metaBg)
+		Background(bg).
+		Render(perm)
 
-	// Render each cell with fixed width
-	styledSize := sizeCell.Render(sizeStr)
-	styledUidGid := uidGidCell.Render(uidGid)
-	styledPerm := permCell.Render(perm)
+	gap := lipgloss.NewStyle().Width(len(MetaGap)).Background(bg).Render(MetaGap)
 
-	// Gap style (must have background if selected)
-	gapStyle := lipgloss.NewStyle().Width(len(MetaGap))
-	if isSelected {
-		gapStyle = gapStyle.Background(lipgloss.Color("#1C1C1E"))
-	}
-	styledGap := gapStyle.Render(MetaGap)
-
-	// Join cells horizontally with gap
-	// This creates a rigid block where each column has exact width
+	// Metadata block (right-aligned columns)
 	metaBlock := lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		styledSize,
-		styledGap,
-		styledUidGid,
-		styledGap,
-		styledPerm,
+		sizeCell, gap, uidGidCell, gap, permCell,
 	)
 
-	// Calculate widths for truncation
-	// Fixed part: cursor + prefix + diffIcon + icon
-	fixedPartWidth := runewidth.StringWidth(cursorMark) +
-		runewidth.StringWidth(prefix) +
-		runewidth.StringWidth(diffIcon) +
-		runewidth.StringWidth(icon)
-
-	// Get actual metadata block width (should be: sizeWidth + gap + uidGidWidth + gap + permWidth)
+	// 7. Calculate available width for filename
+	fixedPartWidth := lipgloss.Width(styledPrefix) + lipgloss.Width(styledIcon)
 	metaBlockWidth := lipgloss.Width(metaBlock)
 
-	// Available width for filename (between file and right-aligned metadata)
-	availableForName := width - fixedPartWidth - metaBlockWidth - 2 // -2 for gaps
+	availableForName := width - fixedPartWidth - metaBlockWidth - 2 // -2 for spacing
 	if availableForName < 5 {
 		availableForName = 5
 	}
@@ -167,45 +137,24 @@ func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix s
 	if runewidth.StringWidth(name) > availableForName {
 		displayName = runewidth.Truncate(name, availableForName, "…")
 	}
-
 	styledName := nameStyle.Render(displayName)
 
-	// Apply background to diffIcon and icon if selected
-	if isSelected {
-		bg := lipgloss.Color("#1C1C1E")
-		if diffIcon != "" {
-			diffIcon = lipgloss.NewStyle().Background(bg).Render(diffIcon)
-		}
-		icon = lipgloss.NewStyle().Background(bg).Render(icon)
-	}
-
-	// Calculate EXACT padding to push metadata to the right edge
-	// Current content width (without spacer)
-	currentContentWidth := fixedPartWidth + runewidth.StringWidth(displayName) + metaBlockWidth
-
-	// How many spaces needed to fill to width?
-	paddingNeeded := width - currentContentWidth
+	// 8. Calculate flexible padding to push metadata to right edge
+	contentWidth := fixedPartWidth + lipgloss.Width(styledName) + metaBlockWidth
+	paddingNeeded := width - contentWidth
 	if paddingNeeded < 1 {
-		paddingNeeded = 1 // At least 1 space gap
+		paddingNeeded = 1
 	}
 
-	// If selected, padding should also have background
-	paddingStyle := lipgloss.NewStyle()
-	if isSelected {
-		paddingStyle = paddingStyle.Background(lipgloss.Color("#1C1C1E"))
-	}
-	padding := paddingStyle.Render(strings.Repeat(" ", paddingNeeded))
+	padding := lipgloss.NewStyle().Width(paddingNeeded).Background(bg).Render(strings.Repeat(" ", paddingNeeded))
 
-	// Assemble final line: tree-guides cursor diff icon filename [SPACER] metadata
-	sb.WriteString(styledPrefix)
-	sb.WriteString(cursorMark)
-	sb.WriteString(diffIcon)
-	sb.WriteString(icon)
-	sb.WriteString(styledName)
-	sb.WriteString(padding) // <--- THIS PUSHES METADATA TO THE RIGHT EDGE
-	sb.WriteString(metaBlock)
-	sb.WriteString("\n")
-
-	// Note: Filename comes first, metadata is right-aligned at the end
-	// Order: filename → size → uid:gid → permissions
+	// 9. Join all components horizontally
+	return lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		styledPrefix,
+		styledIcon,
+		styledName,
+		padding,
+		metaBlock,
+	)
 }

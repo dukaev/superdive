@@ -2,8 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/help"
@@ -17,6 +15,7 @@ import (
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/details"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/layers"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
 	filetree "github.com/wagoodman/dive/dive/filetree"
 	"github.com/wagoodman/dive/dive/image"
 )
@@ -130,9 +129,9 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 
 	h := help.New()
 	h.Width = 80
-	h.Styles.ShortKey = styles.StatusStyle
-	h.Styles.ShortDesc = styles.StatusStyle
-	h.Styles.Ellipsis = styles.StatusStyle
+	h.Styles.ShortKey = styles.HelpStyle
+	h.Styles.ShortDesc = styles.HelpStyle
+	h.Styles.Ellipsis = styles.HelpStyle
 
 	f := NewFilterModel()
 	layerDetailModal := NewLayerDetailModal()
@@ -142,9 +141,6 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 	detailsPane := details.New()
 	imagePane := imagepane.New(&analysis)
 	treePane := filetreepane.New(treeVM)
-
-	// Set initial focus
-	layersPane.Focus()
 
 	// Create model with initial dimensions
 	model := Model{
@@ -168,13 +164,32 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 		layerDetailModal: layerDetailModal,
 	}
 
-	// CRITICAL: Calculate initial layout and set pane sizes immediately
+	// CRITICAL: Calculate initial layout immediately
 	// This ensures panes have correct dimensions before first render
 	model.recalculateLayout()
-	model.layersPane.SetSize(model.layout.LeftWidth, model.layout.LayersHeight)
-	model.detailsPane.SetSize(model.layout.LeftWidth, model.layout.DetailsHeight)
-	model.imagePane.SetSize(model.layout.LeftWidth, model.layout.ImageHeight)
-	model.treePane.SetSize(model.layout.RightWidth, model.layout.TreeHeight)
+
+	// Send LayoutMsg to set initial pane sizes via message passing
+	layoutMsg := common.LayoutMsg{
+		LeftWidth:     model.layout.LeftWidth,
+		LayersHeight:  model.layout.LayersHeight,
+		DetailsHeight: model.layout.DetailsHeight,
+		ImageHeight:   model.layout.ImageHeight,
+		RightWidth:    model.layout.RightWidth,
+		TreeHeight:    model.layout.TreeHeight,
+	}
+
+	// Update panes with initial layout
+	newLayers, _ := model.layersPane.Update(layoutMsg)
+	model.layersPane = newLayers.(layers.Pane)
+
+	newDetails, _ := model.detailsPane.Update(layoutMsg)
+	model.detailsPane = newDetails.(details.Pane)
+
+	newImage, _ := model.imagePane.Update(layoutMsg)
+	model.imagePane = newImage.(imagepane.Pane)
+
+	newTree, _ := model.treePane.Update(layoutMsg)
+	model.treePane = newTree.(filetreepane.Pane)
 
 	return model
 }
@@ -188,16 +203,22 @@ func (m Model) Init() tea.Cmd {
 		m.updateTreeForCurrentLayer()
 	}
 
-	// Initialize details pane with current layer
+	// Initialize details pane with current layer via message
 	if m.layerVM != nil && len(m.layerVM.Layers) > 0 {
 		layerIndex := m.layerVM.LayerIndex
 		if layerIndex >= 0 && layerIndex < len(m.layerVM.Layers) {
-			m.detailsPane.SetLayer(m.layerVM.Layers[layerIndex])
+			layerMsg := common.LayerSelectedMsg{
+				Layer:      m.layerVM.Layers[layerIndex],
+				LayerIndex: layerIndex,
+			}
+			newDetails, _ := m.detailsPane.Update(layerMsg)
+			m.detailsPane = newDetails.(details.Pane)
 		}
 	}
 
-	// Note: Pane sizes are already set in NewModel with initial layout calculation
-	// Content is already generated in constructors (NewLayersPane, etc.)
+	// CRITICAL: Set initial focus state
+	// Parent tells children which pane is focused via FocusStateMsg
+	m.sendFocusStates()
 
 	return tea.Batch(cmds...)
 }
@@ -273,17 +294,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case layers.LayerChangedMsg:
-		// Layer changed - update details pane and tree
+		// Layer changed - update details pane and tree via messages
 		if m.layerVM != nil && msg.LayerIndex >= 0 && msg.LayerIndex < len(m.layerVM.Layers) {
-			m.detailsPane.SetLayer(m.layerVM.Layers[msg.LayerIndex])
+			layerMsg := common.LayerSelectedMsg{
+				Layer:      m.layerVM.Layers[msg.LayerIndex],
+				LayerIndex: msg.LayerIndex,
+			}
+			newDetails, _ := m.detailsPane.Update(layerMsg)
+			m.detailsPane = newDetails.(details.Pane)
 		}
 		m.updateTreeForCurrentLayer()
-
-		// Update focus state
-		m.layersPane.Focus()
-		m.detailsPane.Blur()
-		m.imagePane.Blur()
-		m.treePane.Blur()
 
 	case filetreepane.NodeToggledMsg:
 		// Forward message to tree pane to refresh its visibleNodes cache
@@ -303,7 +323,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.layerDetailModal.Show(msg.Layer)
 
 	case tea.MouseMsg:
-		// Route mouse events to appropriate pane
+		// Route mouse events to appropriate pane with coordinate transformation
+		// Parent handles ALL coordinate math - children receive simple local coordinates
 		x, y := msg.X, msg.Y
 		l := m.layout
 
@@ -316,44 +337,61 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			detailsEndY := layersEndY + l.DetailsHeight
 
 			if y < layersEndY {
-				// Layers pane
-				newPane, cmd := m.layersPane.Update(msg)
+				// Layers pane - transform to local coordinates
+				// X: relative to pane border (will be adjusted by child for content area)
+				// Y: relative to content area (accounting for ContentVisualOffset)
+				localX := x
+				localY := y - l.ContentStartY
+				localMsg := common.LocalMouseMsg{
+					MouseMsg: msg,
+					LocalX:   localX,
+					LocalY:   localY,
+				}
+				newPane, cmd := m.layersPane.Update(localMsg)
 				m.layersPane = newPane.(layers.Pane)
 				cmds = append(cmds, cmd)
 				if m.activePane != PaneLayer {
 					m.activePane = PaneLayer
-					m.updateFocus()
+					m.sendFocusStates()
 				}
 			} else if y >= layersEndY && y < detailsEndY {
 				// Details pane (read-only, no mouse handling)
 				if m.activePane != PaneDetails {
 					m.activePane = PaneDetails
-					m.updateFocus()
+					m.sendFocusStates()
 				}
 			} else {
-				// Image pane
-				newPane, cmd := m.imagePane.Update(msg)
+				// Image pane - transform to local coordinates
+				localX := x
+				localY := y - detailsEndY
+				localMsg := common.LocalMouseMsg{
+					MouseMsg: msg,
+					LocalX:   localX,
+					LocalY:   localY,
+				}
+				newPane, cmd := m.imagePane.Update(localMsg)
 				m.imagePane = newPane.(imagepane.Pane)
 				cmds = append(cmds, cmd)
 				if m.activePane != PaneImage {
 					m.activePane = PaneImage
-					m.updateFocus()
+					m.sendFocusStates()
 				}
 			}
 		} else if inRightCol {
-			// Tree pane
-			// CRITICAL FIX: Adjust X coordinate to be relative to tree pane
-			// Mouse events come in absolute coordinates (from window start)
-			// Tree pane expects local coordinates (from pane start, i.e., LeftWidth)
-			localMsg := msg
-			localMsg.X -= l.LeftWidth
-
+			// Tree pane - transform to local coordinates
+			localX := x - l.LeftWidth
+			localY := y - l.ContentStartY
+			localMsg := common.LocalMouseMsg{
+				MouseMsg: msg,
+				LocalX:   localX,
+				LocalY:   localY,
+			}
 			newPane, cmd := m.treePane.Update(localMsg)
 			m.treePane = newPane.(filetreepane.Pane)
 			cmds = append(cmds, cmd)
 			if m.activePane != PaneTree {
 				m.activePane = PaneTree
-				m.updateFocus()
+				m.sendFocusStates()
 			}
 		}
 
@@ -363,11 +401,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.help.Width = msg.Width
 		m.recalculateLayout()
 
-		// Update pane sizes
-		m.layersPane.SetSize(m.layout.LeftWidth, m.layout.LayersHeight)
-		m.detailsPane.SetSize(m.layout.LeftWidth, m.layout.DetailsHeight)
-		m.imagePane.SetSize(m.layout.LeftWidth, m.layout.ImageHeight)
-		m.treePane.SetSize(m.layout.RightWidth, m.layout.TreeHeight)
+		// Send LayoutMsg to all panes with their new dimensions
+		// This replaces direct SetSize() calls with message passing
+		layoutMsg := common.LayoutMsg{
+			LeftWidth:     m.layout.LeftWidth,
+			LayersHeight:  m.layout.LayersHeight,
+			DetailsHeight: m.layout.DetailsHeight,
+			ImageHeight:   m.layout.ImageHeight,
+			RightWidth:    m.layout.RightWidth,
+			TreeHeight:    m.layout.TreeHeight,
+		}
+
+		// Broadcast to all panes - they will extract what they need
+		var layoutCmds []tea.Cmd
+
+		newLayers, cmd := m.layersPane.Update(layoutMsg)
+		m.layersPane = newLayers.(layers.Pane)
+		layoutCmds = append(layoutCmds, cmd)
+
+		newDetails, cmd := m.detailsPane.Update(layoutMsg)
+		m.detailsPane = newDetails.(details.Pane)
+		layoutCmds = append(layoutCmds, cmd)
+
+		newImage, cmd := m.imagePane.Update(layoutMsg)
+		m.imagePane = newImage.(imagepane.Pane)
+		layoutCmds = append(layoutCmds, cmd)
+
+		newTree, cmd := m.treePane.Update(layoutMsg)
+		m.treePane = newTree.(filetreepane.Pane)
+		layoutCmds = append(layoutCmds, cmd)
+
+		cmds = append(cmds, layoutCmds...)
 	}
 
 	// Update help
@@ -385,27 +449,43 @@ func (m *Model) togglePane() {
 		m.activePane = PaneLayer
 	}
 
-	m.updateFocus()
+	m.sendFocusStates()
 }
 
-func (m *Model) updateFocus() {
-	// Update focus state based on current active pane
-	// Blur all panes first
-	m.layersPane.Blur()
-	m.detailsPane.Blur()
-	m.imagePane.Blur()
-	m.treePane.Blur()
-
-	// Focus only the active pane
+func (m *Model) sendFocusStates() {
+	// Send FocusStateMsg to all panes based on current active pane
+	// Parent is the Single Source of Truth - children receive focus state via messages
 	switch m.activePane {
 	case PaneLayer:
-		m.layersPane.Focus()
+		newPane, _ := m.layersPane.Update(layers.FocusStateMsg{Focused: true})
+		m.layersPane = newPane.(layers.Pane)
 	case PaneDetails:
-		m.detailsPane.Focus() // Show focus visually
+		newPane, _ := m.detailsPane.Update(details.FocusStateMsg{Focused: true})
+		m.detailsPane = newPane.(details.Pane)
 	case PaneImage:
-		m.imagePane.Focus()
+		newPane, _ := m.imagePane.Update(imagepane.FocusStateMsg{Focused: true})
+		m.imagePane = newPane.(imagepane.Pane)
 	case PaneTree:
-		m.treePane.Focus()
+		newPane, _ := m.treePane.Update(filetreepane.FocusStateMsg{Focused: true})
+		m.treePane = newPane.(filetreepane.Pane)
+	}
+
+	// Blur all other panes
+	if m.activePane != PaneLayer {
+		newPane, _ := m.layersPane.Update(layers.FocusStateMsg{Focused: false})
+		m.layersPane = newPane.(layers.Pane)
+	}
+	if m.activePane != PaneDetails {
+		newPane, _ := m.detailsPane.Update(details.FocusStateMsg{Focused: false})
+		m.detailsPane = newPane.(details.Pane)
+	}
+	if m.activePane != PaneImage {
+		newPane, _ := m.imagePane.Update(imagepane.FocusStateMsg{Focused: false})
+		m.imagePane = newPane.(imagepane.Pane)
+	}
+	if m.activePane != PaneTree {
+		newPane, _ := m.treePane.Update(filetreepane.FocusStateMsg{Focused: false})
+		m.treePane = newPane.(filetreepane.Pane)
 	}
 }
 
@@ -438,10 +518,6 @@ func (m Model) View() string {
 
 	// Render UI components
 	statusBar := m.help.View(m.keys)
-
-	// Add active pane indicator to status bar
-	paneName := styles.StatusStyle.Render(fmt.Sprintf(" Active: %s ", m.activePane))
-	statusBar = lipgloss.JoinHorizontal(lipgloss.Top, statusBar, strings.Repeat(" ", 5), paneName)
 
 	// Render panes directly using their View() methods
 	leftColumn := lipgloss.JoinVertical(lipgloss.Left,

@@ -8,14 +8,20 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
 	"github.com/wagoodman/dive/dive/image"
 )
 
+// FocusStateMsg is sent by parent to tell the pane whether it's focused or not
+type FocusStateMsg struct {
+	Focused bool
+}
+
 // Pane displays information about a single layer
 type Pane struct {
-	focused bool
+	focused bool // Set by parent via FocusStateMsg, not by Focus()/Blur() methods
 	width   int
 	height  int
 	layer   *image.Layer
@@ -40,21 +46,6 @@ func (m *Pane) SetLayer(layer *image.Layer) {
 	m.layer = layer
 }
 
-// Focus sets the pane as active
-func (m *Pane) Focus() {
-	m.focused = true
-}
-
-// Blur sets the pane as inactive
-func (m *Pane) Blur() {
-	m.focused = false
-}
-
-// IsFocused returns true if the pane is focused
-func (m *Pane) IsFocused() bool {
-	return m.focused
-}
-
 // Init initializes the pane
 func (m Pane) Init() tea.Cmd {
 	return nil
@@ -62,7 +53,24 @@ func (m Pane) Init() tea.Cmd {
 
 // Update handles messages
 func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Details pane doesn't handle any messages - it's read-only
+	switch msg := msg.(type) {
+	case common.LayoutMsg:
+		// Parent sends layout info instead of calling SetSize()
+		// Extract what we need from the message
+		m.SetSize(msg.LeftWidth, msg.DetailsHeight)
+		return m, nil
+
+	case common.LayerSelectedMsg:
+		// Parent sends layer selection via message instead of calling SetLayer()
+		m.SetLayer(msg.Layer)
+		return m, nil
+
+	case FocusStateMsg:
+		// Parent controls focus state - this is the Single Source of Truth pattern
+		m.focused = msg.Focused
+		return m, nil
+	}
+	// Details pane doesn't handle any other messages - it's read-only
 	return m, nil
 }
 

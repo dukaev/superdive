@@ -11,6 +11,7 @@ import (
 
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1/viewmodel"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/components"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
@@ -28,6 +29,11 @@ type ShowLayerDetailMsg struct {
 	Layer *image.Layer
 }
 
+// FocusStateMsg is sent by parent to tell the pane whether it's focused or not
+type FocusStateMsg struct {
+	Focused bool
+}
+
 // Define layout constants to ensure click detection matches rendering
 const (
 	ColWidthPrefix = 7  // "[1/n] " format (max 6 chars + space)
@@ -41,7 +47,7 @@ const (
 
 // Pane manages the layers list
 type Pane struct {
-	focused          bool
+	focused          bool // Set by parent via FocusStateMsg, not by Focus()/Blur() methods
 	width            int
 	height           int
 	layerVM          *viewmodel.LayerSetState
@@ -49,6 +55,7 @@ type Pane struct {
 	viewport         viewport.Model
 	layerIndex       int
 	statsRows        []components.FileStatsRow // Stats row for each layer
+	statsCache       []utils.FileStats         // Cached statistics for each layer (calculated once)
 }
 
 // New creates a new layers pane
@@ -74,8 +81,53 @@ func New(layerVM *viewmodel.LayerSetState, comparer filetree.Comparer) Pane {
 		statsRows:  statsRows,
 	}
 	// IMPORTANT: Generate content immediately so viewport is not empty on startup
+	// BUT: First calculate stats to avoid heavy computation in View()
+	p.precalculateStats()
 	p.updateContent()
 	return p
+}
+
+// precalculateStats calculates file statistics for all layers once
+// This is called during initialization to avoid expensive tree traversal during rendering
+func (m *Pane) precalculateStats() {
+	if m.layerVM == nil || len(m.layerVM.Layers) == 0 {
+		m.statsCache = nil
+		return
+	}
+
+	// Pre-allocate cache for all layers
+	m.statsCache = make([]utils.FileStats, len(m.layerVM.Layers))
+
+	// Calculate stats for each layer
+	for i, layer := range m.layerVM.Layers {
+		var treeToCompare *filetree.FileTree
+
+		// Use comparer to get the comparison tree for this layer
+		// For layer i, we want to show changes from layer i-1 to i (or 0 to i for first layer)
+		if m.comparer != nil {
+			bottomTreeStart := 0
+			bottomTreeStop := i - 1
+			if bottomTreeStop < 0 {
+				bottomTreeStop = i
+			}
+			topTreeStart := i
+			topTreeStop := i
+
+			key := filetree.NewTreeIndexKey(bottomTreeStart, bottomTreeStop, topTreeStart, topTreeStop)
+			comparisonTree, err := m.comparer.GetTree(key)
+			if err == nil && comparisonTree != nil {
+				treeToCompare = comparisonTree
+			}
+		}
+
+		// Fallback to layer.Tree if comparer didn't work
+		if treeToCompare == nil {
+			treeToCompare = layer.Tree
+		}
+
+		// Calculate stats ONCE per layer (heavy tree traversal)
+		m.statsCache[i] = utils.CalculateFileStats(treeToCompare)
+	}
 }
 
 // SetSize updates the pane dimensions
@@ -120,21 +172,6 @@ func (m *Pane) SetLayerIndex(index int) tea.Cmd {
 	}
 }
 
-// Focus sets the pane as active
-func (m *Pane) Focus() {
-	m.focused = true
-}
-
-// Blur sets the pane as inactive
-func (m *Pane) Blur() {
-	m.focused = false
-}
-
-// IsFocused returns true if the pane is focused
-func (m *Pane) IsFocused() bool {
-	return m.focused
-}
-
 // Init initializes the pane
 func (m Pane) Init() tea.Cmd {
 	m.updateContent()
@@ -146,11 +183,18 @@ func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if !m.focused {
-			return m, nil
-		}
+	case common.LayoutMsg:
+		// Parent sends layout info instead of calling SetSize()
+		// Extract what we need from the message
+		m.SetSize(msg.LeftWidth, msg.LayersHeight)
+		return m, nil
 
+	case FocusStateMsg:
+		// Parent controls focus state - this is the Single Source of Truth pattern
+		m.focused = msg.Focused
+		return m, nil
+
+	case tea.KeyMsg:
 		switch msg.String() {
 		case "up", "k", "[":
 			cmds = append(cmds, m.moveUp())
@@ -165,20 +209,18 @@ func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case tea.MouseMsg:
-		// Mouse wheel
+	case common.LocalMouseMsg:
+		// Mouse coordinates are already transformed by parent to local pane space
+		// LocalX, LocalY are relative to the pane's content area (inside borders)
 		if msg.Action == tea.MouseActionPress {
 			if msg.Button == tea.MouseButtonWheelUp {
 				cmds = append(cmds, m.moveUp())
 			} else if msg.Button == tea.MouseButtonWheelDown {
 				cmds = append(cmds, m.moveDown())
-			}
-		}
-
-		// Left click - select layer
-		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
-			if cmd := m.handleClick(msg.X, msg.Y); cmd != nil {
-				cmds = append(cmds, cmd)
+			} else if msg.Button == tea.MouseButtonLeft {
+				if cmd := m.handleClick(msg.LocalX, msg.LocalY); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
 			}
 		}
 	}
@@ -227,35 +269,25 @@ func (m *Pane) moveDown() tea.Cmd {
 	}
 }
 
-// handleClick processes a mouse click
+// handleClick processes a mouse click with LOCAL coordinates
+// x, y are provided by parent:
+// - x: relative to pane border (X=0 is at the left border)
+// - y: relative to content area (Y=0 is at first line of content, accounting for viewport scroll)
 func (m *Pane) handleClick(x, y int) tea.Cmd {
-	// 1. Basic Bounds Check
-	if x < 0 || x >= m.width || y < 0 {
-		return nil
-	}
-
-	// 2. Adjust Y for Viewport scrolling and Header
-	relativeY := y - layout.ContentVisualOffset
-	if relativeY < 0 || relativeY >= m.viewport.Height {
-		return nil
-	}
-
-	targetIndex := relativeY + m.viewport.YOffset
-	if targetIndex < 0 || targetIndex >= len(m.layerVM.Layers) {
-		return nil
-	}
-
-	// 3. Adjust X for Border
-	// The pane is rendered with RenderBox, which adds 1 char border on the left.
-	// So the content technically starts at X=1 relative to the pane.
-	// We subtract 1 to get the X coordinate relative to the *content*.
+	// Account for the left border (X=1 is first column of content)
 	contentX := x - 1
 	if contentX < 0 {
 		return nil
 	}
 
-	// 4. Check if click is in stats area
-	// We use the shared constant StatsStartOffset to ensure math matches GenerateContent
+	// Y is already relative to the content area, but we need to account for viewport scrolling
+	// The parent has already accounted for ContentVisualOffset, so y starts at 0 for the first visible line
+	targetIndex := y + m.viewport.YOffset
+	if targetIndex < 0 || targetIndex >= len(m.layerVM.Layers) {
+		return nil
+	}
+
+	// Check if click is in stats area
 	if targetIndex < len(m.statsRows) {
 		partType, found := m.statsRows[targetIndex].GetPartAtPosition(contentX, StatsStartOffset)
 		if found {
@@ -269,7 +301,7 @@ func (m *Pane) handleClick(x, y int) tea.Cmd {
 		}
 	}
 
-	// 5. Click outside stats - select layer
+	// Click outside stats - select layer
 	return m.SetLayerIndex(targetIndex)
 }
 
@@ -312,34 +344,10 @@ func (m *Pane) generateContent() string {
 
 		// Update and get stats from component
 		statsStr := ""
-		if i < len(m.statsRows) {
-			// Use comparer to get the comparison tree for this layer
-			// For layer i, we want to show changes from layer i-1 to i (or 0 to i for first layer)
-			var treeToCompare *filetree.FileTree
-			if m.comparer != nil {
-				// Get tree for comparing previous layer (or 0) to current layer
-				// This follows the CompareSingleLayer mode logic
-				bottomTreeStart := 0
-				bottomTreeStop := i - 1
-				if bottomTreeStop < 0 {
-					bottomTreeStop = i
-				}
-				topTreeStart := i
-				topTreeStop := i
-
-				key := filetree.NewTreeIndexKey(bottomTreeStart, bottomTreeStop, topTreeStart, topTreeStop)
-				comparisonTree, err := m.comparer.GetTree(key)
-				if err == nil && comparisonTree != nil {
-					treeToCompare = comparisonTree
-				}
-			}
-
-			// Fallback to layer.Tree if comparer didn't work
-			if treeToCompare == nil {
-				treeToCompare = layer.Tree
-			}
-
-			stats := utils.CalculateFileStats(treeToCompare)
+		if i < len(m.statsRows) && i < len(m.statsCache) {
+			// PERFOMANCE: Use cached stats instead of recalculating on every render
+			// This avoids expensive tree traversal (CalculateFileStats) during scrolling
+			stats := m.statsCache[i]
 			m.statsRows[i].SetStats(stats)
 
 			// Use plain rendering for selected layer to allow background highlight

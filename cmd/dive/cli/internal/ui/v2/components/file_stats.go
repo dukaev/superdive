@@ -69,13 +69,16 @@ func (r *StatsPartRenderer) GetType() StatsPartType {
 // Render renders the stats part as a string
 func (r *StatsPartRenderer) Render() string {
 	var prefix string
-	switch r.partType {
-	case StatsPartAdded:
-		prefix = "+"
-	case StatsPartModified:
-		prefix = "~"
-	case StatsPartRemoved:
-		prefix = "-"
+	// Only show prefix for non-zero values
+	if r.value != 0 {
+		switch r.partType {
+		case StatsPartAdded:
+			prefix = "+"
+		case StatsPartModified:
+			prefix = "~"
+		case StatsPartRemoved:
+			prefix = "-"
+		}
 	}
 
 	// Format value with k/M suffixes to fit in 4 chars max (e.g., "+100k")
@@ -96,13 +99,16 @@ func (r *StatsPartRenderer) Render() string {
 // RenderPlain renders the stats part without any colors (for row highlight)
 func (r *StatsPartRenderer) RenderPlain() string {
 	var prefix string
-	switch r.partType {
-	case StatsPartAdded:
-		prefix = "+"
-	case StatsPartModified:
-		prefix = "~"
-	case StatsPartRemoved:
-		prefix = "-"
+	// Only show prefix for non-zero values
+	if r.value != 0 {
+		switch r.partType {
+		case StatsPartAdded:
+			prefix = "+"
+		case StatsPartModified:
+			prefix = "~"
+		case StatsPartRemoved:
+			prefix = "-"
+		}
 	}
 
 	// Format value with k/M suffixes to fit in 4 chars max (e.g., "+100k")
