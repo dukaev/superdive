@@ -1,12 +1,14 @@
 package filetree
 
 import (
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1/viewmodel"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/keys"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 )
 
@@ -321,4 +323,15 @@ func (p *Pane) handleLeftKey() tea.Cmd {
 // GetList returns the underlying list model
 func (p *Pane) GetList() *list.Model {
 	return &p.list
+}
+
+// ShortHelp returns key bindings specific to the file tree pane.
+// File tree has unique navigation keys for collapsing/expanding folders.
+func (p *Pane) ShortHelp() []key.Binding {
+	return []key.Binding{
+		keys.Keys.Enter,  // Open folder or select file
+		keys.Keys.Space,  // Toggle folder collapse/expand
+		keys.Keys.Left,   // Navigate to parent or collapse
+		keys.Keys.Right,  // Navigate into folder
+	}
 }

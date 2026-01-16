@@ -113,3 +113,27 @@ func TestPane_Update_TreeNavigation(t *testing.T) {
 	view := pane.View()
 	snaps.MatchSnapshot(t, view)
 }
+
+func TestPane_ShortHelp(t *testing.T) {
+	// Load test image data
+	testData := testutils.LoadTestImage(t)
+
+	pane := New(testData.TreeVM)
+
+	// Test that ShortHelp returns tree-specific key bindings
+	keys := pane.ShortHelp()
+	require.NotNil(t, keys)
+	require.Len(t, keys, 4)
+
+	// Extract key descriptions for verification
+	keyHelp := make([]string, len(keys))
+	for i, key := range keys {
+		keyHelp[i] = key.Help().Key
+	}
+
+	// Verify expected keys are present: Enter, Space, Left, Right
+	require.Contains(t, keyHelp, "enter/spc")
+	require.Contains(t, keyHelp, "space")
+	require.Contains(t, keyHelp, "←/h")
+	require.Contains(t, keyHelp, "→/l")
+}

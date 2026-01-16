@@ -94,3 +94,14 @@ func TestPane_Update_WithLayoutMsg(t *testing.T) {
 	view := updatedPane.(*Pane).View()
 	snaps.MatchSnapshot(t, view)
 }
+
+func TestPane_ShortHelp(t *testing.T) {
+	// Load test image data
+	testData := testutils.LoadTestImage(t)
+
+	pane := New(testData.Analysis)
+
+	// Test that ShortHelp returns nil (image pane is read-only)
+	keys := pane.ShortHelp()
+	require.Nil(t, keys)
+}

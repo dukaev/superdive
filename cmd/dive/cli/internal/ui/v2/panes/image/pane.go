@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
@@ -186,4 +187,10 @@ func (m *Pane) generateContent() string {
 	}
 
 	return fullContent.String()
+}
+
+// ShortHelp returns key bindings specific to the image pane.
+// Image pane is read-only, so it has no specific keys.
+func (p *Pane) ShortHelp() []key.Binding {
+	return nil
 }

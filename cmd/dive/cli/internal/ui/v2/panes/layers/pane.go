@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
@@ -14,6 +15,7 @@ import (
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/components"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/domain"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/keys"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
 	"github.com/wagoodman/dive/dive/filetree"
@@ -216,16 +218,29 @@ func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 		}
 
 	case common.LocalMouseMsg:
-		// Mouse coordinates are already transformed by parent to local pane space
-		// LocalX, LocalY are relative to the pane's content area (inside borders)
+		// Mouse coordinates are relative to the marked zone (includes borders + title)
+		// We need to subtract visual offsets to get content coordinates
 		if msg.Action == tea.MouseActionPress {
+			// Content offsets relative to the panel:
+			// Y: 1 (top border) + 1 (box title) + 1 (space padding) = 3
+			// X: 1 (left border)
+			const contentOffsetY = 3
+			const contentOffsetX = 1
+
 			if msg.Button == tea.MouseButtonWheelUp {
 				cmds = append(cmds, m.moveUp())
 			} else if msg.Button == tea.MouseButtonWheelDown {
 				cmds = append(cmds, m.moveDown())
 			} else if msg.Button == tea.MouseButtonLeft {
-				if cmd := m.handleClick(msg.LocalX, msg.LocalY); cmd != nil {
-					cmds = append(cmds, cmd)
+				// Adjust coordinates to be relative to content area
+				contentX := msg.LocalX - contentOffsetX
+				contentY := msg.LocalY - contentOffsetY
+
+				// Ignore clicks on headers/decorations (negative coordinates)
+				if contentY >= 0 && contentX >= 0 {
+					if cmd := m.handleClick(contentX, contentY); cmd != nil {
+						cmds = append(cmds, cmd)
+					}
 				}
 			}
 		}
@@ -275,19 +290,16 @@ func (m *Pane) moveDown() tea.Cmd {
 	}
 }
 
-// handleClick processes a mouse click with LOCAL coordinates
-// x, y are provided by parent:
-// - x: relative to pane border (X=0 is at the left border)
-// - y: relative to content area (Y=0 is at first line of content, accounting for viewport scroll)
+// handleClick processes a mouse click with CONTENT-RELATIVE coordinates
+// x, y are provided by the caller after adjusting for visual offsets:
+// - x: relative to content area (X=0 is first column of content, after left border)
+// - y: relative to content area (Y=0 is first line of content, after title+padding)
+//
+// The caller has already subtracted:
+//   - contentOffsetX (left border)
+//   - contentOffsetY (top border + title + padding)
 func (m *Pane) handleClick(x, y int) tea.Cmd {
-	// Account for the left border (X=1 is first column of content)
-	contentX := x - 1
-	if contentX < 0 {
-		return nil
-	}
-
-	// Y is already relative to the content area, but we need to account for viewport scrolling
-	// The parent has already accounted for ContentVisualOffset, so y starts at 0 for the first visible line
+	// Account for viewport scrolling to get absolute layer index
 	targetIndex := y + m.viewport.YOffset
 	if targetIndex < 0 || targetIndex >= len(m.layerVM.Layers) {
 		return nil
@@ -295,7 +307,7 @@ func (m *Pane) handleClick(x, y int) tea.Cmd {
 
 	// Check if click is in stats area
 	if targetIndex < len(m.statsRows) {
-		partType, found := m.statsRows[targetIndex].GetPartAtPosition(contentX, StatsStartOffset)
+		partType, found := m.statsRows[targetIndex].GetPartAtPosition(x, StatsStartOffset)
 		if found {
 			// Click on a stats part - toggle that specific part
 			part := m.statsRows[targetIndex].GetPart(partType)
@@ -443,4 +455,12 @@ func (m *Pane) GetLayerIndex() int {
 // GetViewport returns the underlying viewport
 func (m *Pane) GetViewport() *viewport.Model {
 	return &m.viewport
+}
+
+// ShortHelp returns key bindings specific to the layers pane.
+// Layers pane has navigation keys and a special Space key to show layer details.
+func (m *Pane) ShortHelp() []key.Binding {
+	return []key.Binding{
+		keys.Keys.Space,  // Show layer detail modal
+	}
 }

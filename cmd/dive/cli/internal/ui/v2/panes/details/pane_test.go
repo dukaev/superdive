@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gkampitakis/go-snaps/snaps"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/testutils"
 	"github.com/wagoodman/dive/dive/image"
@@ -161,4 +162,12 @@ func TestPane_Update_WithLayoutMsg(t *testing.T) {
 	// Verify size was updated
 	view := updatedPane.(*Pane).View()
 	snaps.MatchSnapshot(t, view)
+}
+
+func TestPane_ShortHelp(t *testing.T) {
+	pane := New()
+
+	// Test that ShortHelp returns nil (details pane is read-only)
+	keys := pane.ShortHelp()
+	require.Nil(t, keys)
 }

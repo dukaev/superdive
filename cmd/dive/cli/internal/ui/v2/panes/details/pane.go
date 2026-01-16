@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
@@ -188,4 +189,10 @@ func (m Pane) renderContent() string {
 
 finish:
 	return strings.Join(lines, "\n")
+}
+
+// ShortHelp returns key bindings specific to the details pane.
+// Details pane is read-only, so it has no specific keys.
+func (p *Pane) ShortHelp() []key.Binding {
+	return nil
 }

@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/lrstanley/bubblezone"
 	"github.com/charmbracelet/lipgloss"
 	v1 "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1"
@@ -52,6 +53,20 @@ func (p Pane) String() string {
 		return "Tree"
 	}
 	return "Unknown"
+}
+
+// keyMapWrapper wraps a slice of key bindings to implement help.KeyMap interface
+// This allows us to dynamically combine global and pane-specific keys
+type keyMapWrapper struct {
+	keys []key.Binding
+}
+
+func (k keyMapWrapper) ShortHelp() []key.Binding {
+	return k.keys
+}
+
+func (k keyMapWrapper) FullHelp() [][]key.Binding {
+	return [][]key.Binding{k.keys}
 }
 
 // Model is the bubbletea Model for V2UI
@@ -451,7 +466,20 @@ func (m Model) View() string {
 	}
 
 	// Render UI components
-	statusBar := m.help.View(m.keys)
+	// DYNAMIC HELP: Combine global keys with active pane's specific keys
+	// This shows context-relevant help based on which pane is focused
+	globalKeys := m.keys.ShortHelp()
+
+	var activePaneKeys []key.Binding
+	if activePane, ok := m.panes[m.activePane]; ok {
+		activePaneKeys = activePane.ShortHelp()
+	}
+
+	// Combine global and pane-specific keys
+	// IMPORTANT: Create new slice to avoid mutating global keys
+	allKeys := append(globalKeys, activePaneKeys...)
+
+	statusBar := m.help.View(keyMapWrapper{keys: allKeys})
 
 	// Render panes directly using their View() methods
 	// POLYMORPHISM: Access panes through interface from map
