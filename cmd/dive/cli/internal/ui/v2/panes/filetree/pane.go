@@ -1,6 +1,7 @@
 package filetree
 
 import (
+	"regexp"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -49,6 +50,11 @@ type SetCursorMsg struct {
 	Index int
 }
 
+// SetFilterRegexMsg is sent to update the filter regex for search/hide logic
+type SetFilterRegexMsg struct {
+	Regex *regexp.Regexp
+}
+
 // Pane manages the file tree using viewport for smooth scrolling
 type Pane struct {
 	focused bool
@@ -60,10 +66,11 @@ type Pane struct {
 	viewport viewport.Model
 
 	// Data
-	nodes    []VisibleNode
-	cursor   int // Current selected index in nodes
-	scrollOff int // Number of lines to keep visible above/below cursor (scrolloff)
-	flatMode bool // true = Flat View, false = Tree View
+	nodes       []VisibleNode
+	cursor      int // Current selected index in nodes
+	scrollOff   int // Number of lines to keep visible above/below cursor (scrolloff)
+	flatMode    bool // true = Flat View, false = Tree View
+	filterRegex *regexp.Regexp // Active filter regex for highlighting and clean search
 }
 
 // New creates a new tree pane with viewport for smooth scrolling
@@ -245,6 +252,14 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 		// Set cursor to specific position
 		p.SetTreeIndex(msg.Index)
 		return p, nil
+
+	case SetFilterRegexMsg:
+		// Update filter regex and rebuild nodes with clean search logic
+		if p.filterRegex != msg.Regex {
+			p.filterRegex = msg.Regex
+			p.rebuildNodes()
+		}
+		return p, nil
 	}
 
 	// Update viewport
@@ -371,9 +386,9 @@ func (p Pane) renderVisibleContent() string {
 // renderNodeLine renders a single node line
 func (p Pane) renderNodeLine(node VisibleNode, isSelected bool) string {
 	if node.DisplayName != "" {
-		return RenderNodeLineWithDisplayName(node.Node, node.Prefix, node.DisplayName, isSelected, p.width-2)
+		return RenderNodeLineWithDisplayName(node.Node, node.Prefix, node.DisplayName, isSelected, p.width-2, p.filterRegex)
 	}
-	return RenderNodeLine(node.Node, node.Prefix, isSelected, p.width-2)
+	return RenderNodeLine(node.Node, node.Prefix, isSelected, p.width-2, p.filterRegex)
 }
 
 // rebuildNodes rebuilds the visible nodes list when tree structure changes
@@ -385,10 +400,16 @@ func (p *Pane) rebuildNodes() {
 	}
 
 	// Flatten tree structure into visible nodes
-	// Use different strategy based on current view mode
-	if p.flatMode {
+	// Use different strategy based on current view mode and filter state
+	if p.flatMode && p.filterRegex != nil {
+		// Clean search mode: Flat View + Active Filter
+		// Show ONLY matching nodes, no parent directories (Google-style)
+		p.nodes = CollectSearchResults(p.treeVM.ViewTree.Root, p.filterRegex)
+	} else if p.flatMode {
+		// Flat View without filter (manual toggle with 'f')
 		p.nodes = CollectFlatNodes(p.treeVM.ViewTree.Root)
 	} else {
+		// Regular Tree View
 		p.nodes = CollectVisibleNodes(p.treeVM.ViewTree.Root)
 	}
 

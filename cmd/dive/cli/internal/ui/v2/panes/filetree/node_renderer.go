@@ -1,6 +1,7 @@
 package filetree
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -15,14 +16,15 @@ func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix s
 	if node == nil {
 		return
 	}
-	row := RenderRow(node, prefix, "", isSelected, width)
+	row := RenderRow(node, prefix, "", isSelected, width, nil)
 	sb.WriteString(row)
 	sb.WriteString("\n")
 }
 
 // RenderRow renders a single tree node row using lipgloss.JoinHorizontal for clean layout
 // displayName is optional - if empty, node.Name will be used
-func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int) string {
+// filterRegex is optional - if provided, matching text will be highlighted
+func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int, filterRegex *regexp.Regexp) string {
 	// 1. Icon and color
 	icon := styles.IconFile
 	color := styles.DiffNormalColor
@@ -75,9 +77,10 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 	}
 
 	// 4. Common background for selected state
+	// IMPROVED: Better contrast with lighter background
 	bg := lipgloss.Color("")
 	if isSelected {
-		bg = lipgloss.Color("#1C1C1E")
+		bg = lipgloss.Color("#48484A") // Lighter gray for better contrast
 	}
 
 	// 5. Build styled components
@@ -90,9 +93,18 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 	styledIcon := iconStyle.Render(icon)
 
 	// Filename with diff color
-	nameStyle := lipgloss.NewStyle().Foreground(color).Background(bg)
-	if isSelected {
-		nameStyle = nameStyle.Bold(true).Foreground(styles.PrimaryColor)
+	// Apply match highlighting if filter is provided
+	var finalStyledName string
+	if filterRegex != nil && filterRegex.MatchString(name) {
+		// Highlight matching portions
+		finalStyledName = highlightMatches(name, filterRegex, color, isSelected, bg)
+	} else {
+		// No highlighting, use normal style
+		nameStyle := lipgloss.NewStyle().Foreground(color).Background(bg)
+		if isSelected {
+			nameStyle = nameStyle.Bold(true).Foreground(styles.PrimaryColor)
+		}
+		finalStyledName = nameStyle.Render(name)
 	}
 
 	// 6. Render metadata cells (fixed width)
@@ -136,15 +148,27 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 		availableForName = 5
 	}
 
-	// Truncate name if needed
+	// Truncate name if needed (check visual width, not character count)
 	truncatedName := name
-	if runewidth.StringWidth(name) > availableForName {
-		truncatedName = runewidth.Truncate(name, availableForName, "…")
+	if runewidth.StringWidth(finalStyledName) > availableForName {
+		// If highlighting makes it too long, truncate without highlighting
+		if runewidth.StringWidth(name) > availableForName {
+			truncatedName = runewidth.Truncate(name, availableForName, "…")
+		}
+		// Re-apply highlighting to truncated name
+		if filterRegex != nil && filterRegex.MatchString(truncatedName) {
+			finalStyledName = highlightMatches(truncatedName, filterRegex, color, isSelected, bg)
+		} else {
+			nameStyle := lipgloss.NewStyle().Foreground(color).Background(bg)
+			if isSelected {
+				nameStyle = nameStyle.Bold(true).Foreground(styles.PrimaryColor)
+			}
+			finalStyledName = nameStyle.Render(truncatedName)
+		}
 	}
-	styledName := nameStyle.Render(truncatedName)
 
 	// 8. Calculate flexible padding to push metadata to right edge
-	contentWidth := fixedPartWidth + lipgloss.Width(styledName) + metaBlockWidth
+	contentWidth := fixedPartWidth + lipgloss.Width(finalStyledName) + metaBlockWidth
 	paddingNeeded := width - contentWidth
 	if paddingNeeded < 1 {
 		paddingNeeded = 1
@@ -157,20 +181,73 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 		lipgloss.Top,
 		styledPrefix,
 		styledIcon,
-		styledName,
+		finalStyledName,
 		padding,
 		metaBlock,
 	)
 }
 
+// highlightMatches applies regex highlighting to matching portions of the text
+func highlightMatches(text string, filter *regexp.Regexp, baseColor lipgloss.Color, isSelected bool, bg lipgloss.Color) string {
+	// Find all matches
+	matches := filter.FindAllStringIndex(text, -1)
+	if len(matches) == 0 {
+		// Should not happen since we check MatchString before calling
+		nameStyle := lipgloss.NewStyle().Foreground(baseColor).Background(bg)
+		if isSelected {
+			nameStyle = nameStyle.Bold(true).Foreground(styles.PrimaryColor)
+		}
+		return nameStyle.Render(text)
+	}
+
+	// Build highlighted string
+	var result strings.Builder
+	lastEnd := 0
+
+	// Highlight color: bright yellow for visibility
+	highlightColor := lipgloss.Color("#FFFF00") // Bright yellow
+	if isSelected {
+		highlightColor = lipgloss.Color("#FFD700") // Gold for selected state
+	}
+
+	normalStyle := lipgloss.NewStyle().Foreground(baseColor).Background(bg)
+	if isSelected {
+		normalStyle = normalStyle.Bold(true).Foreground(styles.PrimaryColor)
+	}
+
+	highlightStyle := lipgloss.NewStyle().Foreground(highlightColor).Background(bg)
+	if isSelected {
+		highlightStyle = highlightStyle.Bold(true)
+	}
+
+	for _, match := range matches {
+		// Add non-matching text before this match
+		if match[0] > lastEnd {
+			result.WriteString(normalStyle.Render(text[lastEnd:match[0]]))
+		}
+
+		// Add matching text with highlight
+		result.WriteString(highlightStyle.Render(text[match[0]:match[1]]))
+
+		lastEnd = match[1]
+	}
+
+	// Add remaining text after last match
+	if lastEnd < len(text) {
+		result.WriteString(normalStyle.Render(text[lastEnd:]))
+	}
+
+	return result.String()
+}
+
 // RenderNodeLine renders a single node line for viewport.
 // This is a convenience wrapper around RenderRow.
-func RenderNodeLine(node *filetree.FileNode, prefix string, isSelected bool, width int) string {
-	return RenderRow(node, prefix, "", isSelected, width)
+func RenderNodeLine(node *filetree.FileNode, prefix string, isSelected bool, width int, filterRegex *regexp.Regexp) string {
+	return RenderRow(node, prefix, "", isSelected, width, filterRegex)
 }
 
 // RenderNodeLineWithDisplayName renders a single node line with a custom display name.
 // This is used for flat view where the full path is shown instead of just the name.
-func RenderNodeLineWithDisplayName(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int) string {
-	return RenderRow(node, prefix, displayName, isSelected, width)
+func RenderNodeLineWithDisplayName(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int, filterRegex *regexp.Regexp) string {
+	return RenderRow(node, prefix, displayName, isSelected, width, filterRegex)
 }

@@ -98,6 +98,7 @@ type Model struct {
 
 	// Search state
 	searching      bool            // Whether search mode is active
+	previousPane   Pane            // Pane that was active before search (for Esc to restore focus)
 	searchInput   textinput.Model // Search input field
 	filterRegex   *regexp.Regexp  // Compiled regex for tree filtering
 	currentMatch  int             // Index of currently selected match (-1 if no match)
@@ -301,6 +302,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "ctrl+f", "/":
 			// Enter search mode
+			// Save current pane so Esc can restore focus later
+			m.previousPane = m.activePane
 			m.searching = true
 			m.searchInput.Focus()
 			m.searchInput.SetValue("")
@@ -611,6 +614,10 @@ func (m *Model) applyFilter(pattern string) {
 	newPane, _ = m.panes[PaneTree].Update(filetreepane.SetFlatModeMsg{Flat: flatMode})
 	m.panes[PaneTree] = newPane
 
+	// Send filter regex to tree pane for clean search results
+	newPane, _ = m.panes[PaneTree].Update(filetreepane.SetFilterRegexMsg{Regex: filterRegex})
+	m.panes[PaneTree] = newPane
+
 	// Count matches efficiently - get visible node count from pane
 	// Avoid double tree traversal
 	m.totalMatches = m.getVisibleNodeCount()
@@ -699,20 +706,13 @@ func (m Model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.panes[PaneTree] = newPane
 			return m, nil
 
-		case "n":
-			// Jump to next match
-			if m.totalMatches > 0 {
-				nextMatch := m.currentMatch + 1
-				if nextMatch >= m.totalMatches {
-					nextMatch = 0 // Wrap around
-				}
-				m.jumpToMatch(nextMatch)
-			}
-			return m, nil
+		// REMOVED: case "n" - was blocking input of letter 'n' (e.g., "nginx", "kernel")
+		// In clean search mode, "next match" is just "down" since non-matching files are hidden
 
-		case "up", "k", "down", "j":
+		case "up", "down":
 			// PASSTHROUGH: Forward navigation keys to tree pane
 			// This allows navigating the filtered tree while still in search mode
+			// REMOVED: "j", "k" - they were blocking input (e.g., "json")
 			if treePane, ok := m.panes[PaneTree]; ok {
 				updatedPane, cmd := treePane.Update(msg)
 				m.panes[PaneTree] = updatedPane
@@ -721,9 +721,9 @@ func (m Model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 
 		case "ctrl+n":
-			// Alternative down key (Vim-style)
+			// Alternative down key (Standard CLI navigation)
 			if treePane, ok := m.panes[PaneTree]; ok {
-				downMsg := tea.KeyMsg{Type: tea.KeyDown, Runes: []rune{'j'}}
+				downMsg := tea.KeyMsg{Type: tea.KeyDown}
 				updatedPane, cmd := treePane.Update(downMsg)
 				m.panes[PaneTree] = updatedPane
 				cmds = append(cmds, cmd)
@@ -731,9 +731,9 @@ func (m Model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 
 		case "ctrl+p":
-			// Alternative up key (Vim-style)
+			// Alternative up key (Standard CLI navigation)
 			if treePane, ok := m.panes[PaneTree]; ok {
-				upMsg := tea.KeyMsg{Type: tea.KeyUp, Runes: []rune{'k'}}
+				upMsg := tea.KeyMsg{Type: tea.KeyUp}
 				updatedPane, cmd := treePane.Update(upMsg)
 				m.panes[PaneTree] = updatedPane
 				cmds = append(cmds, cmd)

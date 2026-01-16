@@ -1,6 +1,7 @@
 package filetree
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 
@@ -105,6 +106,44 @@ func CollectFlatNodes(root *filetree.FileNode) []VisibleNode {
 		}
 
 		// Recursively process all children (ignore collapsed state)
+		sortedChildren := SortChildren(node.Children)
+		for _, child := range sortedChildren {
+			traverse(child)
+		}
+	}
+
+	traverse(root)
+	return nodes
+}
+
+// CollectSearchResults collects ONLY nodes that match the filter regex
+// This implements "Google-style" clean search: no parent directories shown
+// unless they themselves match the search pattern
+func CollectSearchResults(root *filetree.FileNode, filter *regexp.Regexp) []VisibleNode {
+	var nodes []VisibleNode
+
+	var traverse func(*filetree.FileNode)
+	traverse = func(node *filetree.FileNode) {
+		if node == nil {
+			return
+		}
+
+		// Skip root node (it has no parent and represents the filesystem root)
+		if node.Parent != nil {
+			// Check if this node matches the filter
+			// We use the full path for matching (e.g., "/etc/fstab")
+			if filter.MatchString(node.Path()) {
+				nodes = append(nodes, VisibleNode{
+					Node:        node,
+					Prefix:      "", // No tree prefix in flat mode
+					DisplayName: node.Path(), // Show full path
+				})
+			}
+		}
+
+		// IMPORTANT: Always recurse into children, even if current node doesn't match
+		// This allows finding matches deep in the directory tree
+		// Use ModelTree (not ViewTree) to search ALL files, not just visible ones
 		sortedChildren := SortChildren(node.Children)
 		for _, child := range sortedChildren {
 			traverse(child)
