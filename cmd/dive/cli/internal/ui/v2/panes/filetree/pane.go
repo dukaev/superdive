@@ -128,31 +128,33 @@ func (p Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case common.LocalMouseMsg:
 		// Handle mouse events manually since bubbles/list doesn't understand LocalMouseMsg
 		if msg.Action == tea.MouseActionPress {
+			// Content offsets relative to the panel:
+			// Y: 1 (top border) + 1 (box title) + 1 (empty line) + 1 (table header) = 4
+			// X: 1 (left border)
+			const contentOffsetY = 4
+			const contentOffsetX = 1
+
 			switch msg.Button {
 			case tea.MouseButtonWheelUp, tea.MouseButtonWheelDown:
-				// IMPORTANT: For scrolling, pass the ORIGINAL message (msg.MouseMsg)
-				// directly to the list component. bubbles/list knows how to properly
-				// scroll the viewport when it receives standard wheel events.
-				// Using CursorUp/Down here was incorrect as they only move the cursor,
-				// not the viewport.
+				// CRITICAL FIX:
+				// bubbles/list has Hit Test: if Y < 0 or Y > Height, event is ignored.
+				// We must pass coordinates RELATIVE TO THE LIST ITSELF (accounting for offsets),
+				// otherwise scroll only works at the top of the list.
+				localMsg := msg.MouseMsg
+				localMsg.X = msg.LocalX - contentOffsetX
+				localMsg.Y = msg.LocalY - contentOffsetY
+
 				var cmd tea.Cmd
-				p.list, cmd = p.list.Update(msg.MouseMsg)
+				p.list, cmd = p.list.Update(localMsg)
 				return p, cmd
 
 			case tea.MouseButtonLeft:
-				// Calculate item index from Y coordinate
-				// Content offset consists of:
-				// 1 (top border) + 1 (box title) + 1 (empty line) + 1 (table header) = 4
-				const contentOffsetY = 4
-
-				// Local Y coordinate within the list
+				// For clicks, use the same Y offset logic
 				clickY := msg.LocalY - contentOffsetY
 
-				// Ignore clicks above/below the list content
+				// Ignore clicks on headers (negative coordinates relative to list)
 				if clickY >= 0 {
-					// Calculate absolute index of the item in the list
-					// Start() returns the index of the first visible item
-					// (p.list.Index() - p.list.Cursor()) is the index of the top item
+					// Calculate absolute item index
 					firstVisibleIndex := p.list.Index() - p.list.Cursor()
 					targetIndex := firstVisibleIndex + clickY
 
@@ -160,7 +162,6 @@ func (p Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if targetIndex >= 0 && targetIndex < len(p.list.Items()) {
 						p.list.Select(targetIndex)
 						// Click selects file and toggles folder
-						// Send selection changed message and toggle command
 						return p, tea.Batch(
 							func() tea.Msg { return TreeSelectionChangedMsg{NodeIndex: targetIndex} },
 							p.toggleCollapse(),

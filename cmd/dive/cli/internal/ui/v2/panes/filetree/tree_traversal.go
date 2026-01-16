@@ -34,7 +34,7 @@ func CollectVisibleNodes(root *filetree.FileNode) []VisibleNode {
 			if i == len(levels)-1 {
 				// Current level (the node itself) - 2 chars
 				if isLast {
-					prefixBuilder.WriteString("└─") // Was "└── "
+					prefixBuilder.WriteString("╰─") // Was "└── "
 				} else {
 					prefixBuilder.WriteString("├─") // Was "├── "
 				}
@@ -77,7 +77,7 @@ func CollectVisibleNodes(root *filetree.FileNode) []VisibleNode {
 		sortedChildren := SortChildren(root.Children)
 		count := len(sortedChildren)
 		for i, child := range sortedChildren {
-			traverse(child, []bool{i == count - 1})
+			traverse(child, []bool{i == count-1})
 		}
 	}
 

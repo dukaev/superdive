@@ -1,0 +1,161 @@
+
+[TestPane_View_NoAnalysis - 1]
+╭──────────────────────────────────────────────────────────────────────────────╮
+│Image Details                                                                 │
+│                                                                              │
+│No image data                                                                 │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+---
+
+[TestPane_View_WithAnalysis - 1]
+╭──────────────────────────────────────────────────────────────────────────────╮
+│Image Details                                                                 │
+│                                                                              │
+│Image name: /Users/aslan/Documents/oss/dive/.data/test-docker-image.tar       │
+│Total Image size: 1.2 MB                                                      │
+│Potential wasted space: 31.3 KB                                               │
+│Image efficiency score: 98%                                                   │
+│Files > 0 KB total: 0                                                         │
+│                                                                              │
+│Count Total Space  Path                                                       │
+│2     6.3 KB       /root/example/somefile3.txt                                │
+│2     12.5 KB      /root/example/somefile1.txt                                │
+│2     12.5 KB      /root/saved.txt                                            │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+---
+
+[TestPane_View_Focused - 1]
+╭──────────────────────────────────────────────────────────────────────────────╮
+│Image Details                                                                 │
+│                                                                              │
+│Image name: /Users/aslan/Documents/oss/dive/.data/test-docker-image.tar       │
+│Total Image size: 1.2 MB                                                      │
+│Potential wasted space: 31.3 KB                                               │
+│Image efficiency score: 98%                                                   │
+│Files > 0 KB total: 0                                                         │
+│                                                                              │
+│Count Total Space  Path                                                       │
+│2     6.3 KB       /root/example/somefile3.txt                                │
+│2     12.5 KB      /root/example/somefile1.txt                                │
+│2     12.5 KB      /root/saved.txt                                            │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+---
+
+[TestPane_View_SmallWidth - 1]
+╭──────────────────────────────────────╮
+│Image Details                         │
+│                                      │
+│Image name: /Users/aslan/Documents/oss│
+│Total Image size: 1.2 MB              │
+│Potential wasted space: 31.3 KB       │
+│Image efficiency score: 98%           │
+│Files > 0 KB total: 0                 │
+│                                      │
+│Count Total Space  Path               │
+│2     6.3 KB       /root/example/so...│
+│2     12.5 KB      /root/example/so...│
+│2     12.5 KB      /root/saved.txt    │
+│                                      │
+│                                      │
+│                                      │
+│                                      │
+│                                      │
+│                                      │
+╰──────────────────────────────────────╯
+---
+
+[TestPane_View_SmallHeight - 1]
+╭──────────────────────────────────────────────────────────────────────────────╮
+│Image Details                                                                 │
+│                                                                              │
+│Image name: /Users/aslan/Documents/oss/dive/.data/test-docker-image.tar       │
+│Total Image size: 1.2 MB                                                      │
+│Potential wasted space: 31.3 KB                                               │
+│Image efficiency score: 98%                                                   │
+╰──────────────────────────────────────────────────────────────────────────────╯
+---
+
+[TestPane_View_LargeSize - 1]
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│Image Details                                                                                                         │
+│                                                                                                                      │
+│Image name: /Users/aslan/Documents/oss/dive/.data/test-docker-image.tar                                               │
+│Total Image size: 1.2 MB                                                                                              │
+│Potential wasted space: 31.3 KB                                                                                       │
+│Image efficiency score: 98%                                                                                           │
+│Files > 0 KB total: 0                                                                                                 │
+│                                                                                                                      │
+│Count Total Space  Path                                                                                               │
+│2     6.3 KB       /root/example/somefile3.txt                                                                        │
+│2     12.5 KB      /root/example/somefile1.txt                                                                        │
+│2     12.5 KB      /root/saved.txt                                                                                    │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+---
+
+[TestPane_Update_WithLayoutMsg - 1]
+╭────────────────────────────────────────────────╮
+│Image Details                                   │
+│                                                │
+│Image name: /Users/aslan/Documents/oss/dive/.dat│
+│Total Image size: 1.2 MB                        │
+│Potential wasted space: 31.3 KB                 │
+│Image efficiency score: 98%                     │
+│Files > 0 KB total: 0                           │
+│                                                │
+│Count Total Space  Path                         │
+│2     6.3 KB       /root/example/somefile3.txt  │
+╰────────────────────────────────────────────────╯
+---

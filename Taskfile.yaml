@@ -182,6 +182,16 @@ tasks:
       - cmd: ".github/scripts/coverage.py {{ .COVERAGE_THRESHOLD }} {{ .TMP_DIR }}/unit-coverage-details.txt"
         silent: true
 
+  unit-update-snapshots:
+    desc: Update snapshot test golden files
+    deps:
+      - tmpdir
+    vars:
+      TEST_PKGS:
+        sh: "go list ./... | grep -v '^github.com/wagoodman/dive/cmd/dive/cli$'  | tr '\n' ' '"
+    cmds:
+      - "go test {{ .TEST_PKGS }} -update -v"
+
   cli:
     desc: Run CLI tests
     cmds:
