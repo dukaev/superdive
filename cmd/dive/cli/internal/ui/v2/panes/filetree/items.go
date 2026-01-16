@@ -1,7 +1,7 @@
 package filetree
 
 import (
-	"github.com/charmbracelet/bubbles/list"
+	"charm.land/bubbles/v2/list"
 	"github.com/wagoodman/dive/dive/filetree"
 )
 

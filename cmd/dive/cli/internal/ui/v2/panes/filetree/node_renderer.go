@@ -158,3 +158,9 @@ func RenderRow(node *filetree.FileNode, prefix string, isSelected bool, width in
 		metaBlock,
 	)
 }
+
+// RenderNodeLine renders a single node line for viewport.
+// This is a convenience wrapper around RenderRow.
+func RenderNodeLine(node *filetree.FileNode, prefix string, isSelected bool, width int) string {
+	return RenderRow(node, prefix, isSelected, width)
+}

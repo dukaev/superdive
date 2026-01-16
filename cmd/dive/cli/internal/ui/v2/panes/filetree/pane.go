@@ -1,10 +1,12 @@
 package filetree
 
 import (
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1/viewmodel"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
@@ -37,44 +39,39 @@ type UpdateViewModelMsg struct {
 	TreeVM *viewmodel.FileTreeViewModel
 }
 
-// Pane manages the file tree using bubbles/list for automatic scrolling and navigation
+// Pane manages the file tree using viewport for smooth scrolling
 type Pane struct {
 	focused bool
 	width   int
 	height  int
 	treeVM  *viewmodel.FileTreeViewModel
 
-	// list.Model handles scrolling, cursor, and viewport automatically
-	list list.Model
+	// Viewport for state (YOffset) only
+	viewport viewport.Model
+
+	// Data
+	nodes    []VisibleNode
+	cursor   int // Current selected index in nodes
+	scrollOff int // Number of lines to keep visible above/below cursor (scrolloff)
 }
 
-// New creates a new tree pane with bubbles/list
+// New creates a new tree pane with viewport for smooth scrolling
 func New(treeVM *viewmodel.FileTreeViewModel) Pane {
-	// Initialize list with custom delegate
-	delegate := NewTreeDelegate()
-	l := list.New([]list.Item{}, delegate, 0, 0)
-
-	// Configure list appearance
-	l.SetShowTitle(false)
-	l.SetShowStatusBar(false)
-	l.SetShowHelp(false)
-	l.SetFilteringEnabled(false)
-	l.SetShowPagination(false) // Disable bubbles pagination, we scroll ourselves
-
-	// Custom key bindings for page navigation
-	l.KeyMap.NextPage.SetKeys("pgdown", " ", "f")
-	l.KeyMap.PrevPage.SetKeys("pgup", "b")
+	v := viewport.New(80, 20)
 
 	p := Pane{
-		treeVM:  treeVM,
-		focused: false,
-		width:   80,
-		height:  20,
-		list:    l,
+		treeVM:    treeVM,
+		focused:   false,
+		width:     80,
+		height:    20,
+		viewport:  v,
+		nodes:     []VisibleNode{},
+		cursor:    0,
+		scrollOff: 3, // Keep 3 lines visible above/below cursor (like vim scrolloff)
 	}
 
 	// Build initial list items
-	p.rebuildListItems()
+	p.rebuildNodes()
 	return p
 }
 
@@ -83,35 +80,43 @@ func (p *Pane) Resize(width, height int) {
 	p.width = width
 	p.height = height
 
-	// Calculate available height for the list content
+	// Calculate available height for the viewport content
 	// Layout Padding: 2 (Top Border) + 2 (Bottom Border/Title gap) = 4
-	// Header visual height: 1 (not layout.TreeTableHeaderHeight which is 3)
+	// Header visual height: 1
+	// Critical: -1 accounts for the separator line added by RenderBox
 	const visualHeaderHeight = 1
-
-	availableHeight := height - layout.BoxContentPadding - visualHeaderHeight
+	availableHeight := height - layout.BoxContentPadding - visualHeaderHeight - 1
 	if availableHeight < 0 {
 		availableHeight = 0
 	}
 
-	// Update list size (handles viewport automatically)
-	p.list.SetSize(width-2, availableHeight)
+	// Update viewport size (v1 uses direct field access)
+	p.viewport.Width = width - 2
+	p.viewport.Height = availableHeight
+
+	// Re-set dummy content to ensure viewport logic works with new height
+	p.updateViewportHeight()
 }
 
 // SetTreeVM updates the tree viewmodel
 func (p *Pane) SetTreeVM(treeVM *viewmodel.FileTreeViewModel) {
 	p.treeVM = treeVM
-	p.rebuildListItems()
-	p.list.Select(0)
+	p.rebuildNodes()
+	p.cursor = 0
+	p.ensureCursorVisible()
 }
 
 // SetTreeIndex sets the current tree index
 func (p *Pane) SetTreeIndex(index int) {
-	p.list.Select(index)
+	if index >= 0 && index < len(p.nodes) {
+		p.cursor = index
+		p.ensureCursorVisible()
+	}
 }
 
 // GetTreeIndex returns the current tree index
 func (p *Pane) GetTreeIndex() int {
-	return p.list.Index()
+	return p.cursor
 }
 
 // Init initializes the pane
@@ -126,8 +131,6 @@ func (p *Pane) SetFocused(focused bool) {
 
 // Update handles messages
 func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
 	case common.LayoutMsg:
 		p.Resize(msg.RightWidth, msg.TreeHeight)
@@ -137,152 +140,260 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 		p.SetFocused(msg.Focused)
 		return p, nil
 
-	case common.LocalMouseMsg:
-		// Handle mouse events manually since bubbles/list doesn't understand LocalMouseMsg
-		if msg.Action == tea.MouseActionPress {
-			// Content offsets relative to the panel:
-			// Y: 1 (top border) + 1 (box title) + 1 (empty line) + 1 (table header) = 4
-			// X: 1 (left border)
-			const contentOffsetY = 4
-			const contentOffsetX = 1
-
-			switch msg.Button {
-			case tea.MouseButtonWheelUp, tea.MouseButtonWheelDown:
-				// CRITICAL FIX:
-				// bubbles/list has Hit Test: if Y < 0 or Y > Height, event is ignored.
-				// We must pass coordinates RELATIVE TO THE LIST ITSELF (accounting for offsets),
-				// otherwise scroll only works at the top of the list.
-				localMsg := msg.MouseMsg
-				localMsg.X = msg.LocalX - contentOffsetX
-				localMsg.Y = msg.LocalY - contentOffsetY
-
-				var cmd tea.Cmd
-				p.list, cmd = p.list.Update(localMsg)
-				return p, cmd
-
-			case tea.MouseButtonLeft:
-				// For clicks, use the same Y offset logic
-				clickY := msg.LocalY - contentOffsetY
-
-				// Ignore clicks on headers (negative coordinates relative to list)
-				if clickY >= 0 {
-					// Calculate absolute item index
-					firstVisibleIndex := p.list.Index() - p.list.Cursor()
-					targetIndex := firstVisibleIndex + clickY
-
-					// Check bounds
-					if targetIndex >= 0 && targetIndex < len(p.list.Items()) {
-						p.list.Select(targetIndex)
-						// Click selects file and toggles folder
-						return p, tea.Batch(
-							func() tea.Msg { return TreeSelectionChangedMsg{NodeIndex: targetIndex} },
-							p.toggleCollapse(),
-						)
-					}
-				}
-			}
-		}
-
 	case tea.KeyMsg:
 		if !p.focused {
 			return p, nil
 		}
 
-		// Handle special keys before delegating to list
+		// Handle keyboard navigation
 		switch msg.String() {
+		case "up", "k":
+			p.moveCursor(-1)
+		case "down", "j":
+			p.moveCursor(1)
+		case "home", "g":
+			p.cursor = 0
+			p.ensureCursorVisible()
+		case "end", "G":
+			if len(p.nodes) > 0 {
+				p.cursor = len(p.nodes) - 1
+			}
+			p.ensureCursorVisible()
 		case "enter", "space", "right", "l":
-			// Toggle folder collapse/expand
 			return p, p.toggleCollapse()
 		case "left", "h":
 			return p, p.handleLeftKey()
-		case "up", "k":
-			// Let list handle navigation
-		case "down", "j":
-			// Let list handle navigation
-		case "home", "g":
-			p.list.Select(0)
-			return p, nil
-		case "end", "G":
-			items := p.list.Items()
-			if len(items) > 0 {
-				p.list.Select(len(items) - 1)
-			}
+		}
+
+	// --- MOUSE HANDLING ---
+	case common.LocalMouseMsg:
+		if !p.focused {
 			return p, nil
 		}
 
+		mouseMsg := msg.MouseMsg
+		if mouseMsg.Action == tea.MouseActionPress {
+			// Handle Scrolling
+			if mouseMsg.Button == tea.MouseButtonWheelUp {
+				p.viewport.ScrollUp(1)
+				return p, nil
+			}
+			if mouseMsg.Button == tea.MouseButtonWheelDown {
+				p.viewport.ScrollDown(1)
+				return p, nil
+			}
+
+			// Handle Left Click (Selection)
+			if mouseMsg.Button == tea.MouseButtonLeft {
+				// Calculate Y offset for the content
+				// Y=0: Border Top
+				// Y=1: Title
+				// Y=2: Padding (Space)
+				// Y=3: Table Header (RenderHeader)
+				// Y=4: Content Start
+				const contentOffsetY = 4
+
+				// Calculate which row was clicked relative to viewport top
+				clickY := msg.LocalY - contentOffsetY
+
+				if clickY >= 0 {
+					// Add viewport scroll offset to get absolute index
+					targetIndex := clickY + p.viewport.YOffset
+
+					// Validate index
+					if targetIndex >= 0 && targetIndex < len(p.nodes) {
+						p.cursor = targetIndex
+						p.ensureCursorVisible()
+						// Return command to notify system of selection change
+						return p, func() tea.Msg { return TreeSelectionChangedMsg{NodeIndex: p.cursor} }
+					}
+				}
+			}
+		}
+
 	case NodeToggledMsg, RefreshTreeContentMsg:
-		p.rebuildListItems()
+		p.rebuildNodes()
 
 	case UpdateViewModelMsg:
-		// Parent sends updated viewmodel (e.g., after layer change or filter)
 		p.SetTreeVM(msg.TreeVM)
 		return p, nil
 	}
 
-	// Delegate all other messages to list (handles navigation, scrolling, mouse)
+	// Update viewport
 	var cmd tea.Cmd
-	p.list, cmd = p.list.Update(msg)
-	cmds = append(cmds, cmd)
-
-	return p, tea.Batch(cmds...)
+	p.viewport, cmd = p.viewport.Update(msg)
+	return p, cmd
 }
 
 // View renders the pane
 func (p Pane) View() string {
+	// OPTIMIZATION: Render ONLY visible nodes based on viewport state
+	content := p.renderVisibleContent()
+
+	// DO NOT call p.viewport.SetContent(content) here. It's too slow for large trees.
+	// DO NOT call p.viewport.View() here (it would return the dummy newlines).
+
 	// 1. Static table header
 	header := RenderHeader(p.width)
 
-	// 2. List view (bubbles/list renders only visible items)
-	listView := p.list.View()
-
-	// 3. Combine header and list
-	fullContent := lipgloss.JoinVertical(lipgloss.Left, header, listView)
+	// 2. Combine header and rendered visible slice
+	fullContent := lipgloss.JoinVertical(lipgloss.Left, header, content)
 
 	return styles.RenderBox("Current Layer Contents", p.width, p.height, fullContent, p.focused)
 }
 
-// ========================================
-// TREE OPERATIONS
-// ========================================
+// moveCursor moves the cursor by delta and ensures visibility
+func (p *Pane) moveCursor(delta int) {
+	if len(p.nodes) == 0 {
+		return
+	}
 
-// rebuildListItems rebuilds the list when tree structure changes
-func (p *Pane) rebuildListItems() {
+	newCursor := p.cursor + delta
+	if newCursor < 0 {
+		newCursor = 0
+	} else if newCursor >= len(p.nodes) {
+		newCursor = len(p.nodes) - 1
+	}
+
+	p.cursor = newCursor
+	p.ensureCursorVisible()
+}
+
+// ensureCursorVisible ensures the cursor is visible in viewport with scrolloff
+func (p *Pane) ensureCursorVisible() {
+	if len(p.nodes) == 0 {
+		return
+	}
+
+	// Each node is 1 line high
+	cursorLine := p.cursor
+
+	// Get current viewport bounds
+	viewportHeight := p.viewport.Height
+	if viewportHeight <= 0 {
+		return
+	}
+
+	// Calculate desired top position with scrolloff
+	desiredTop := cursorLine - p.scrollOff
+	if desiredTop < 0 {
+		desiredTop = 0
+	}
+
+	// Calculate desired bottom position
+	desiredBottom := cursorLine + p.scrollOff
+
+	// Get current line offset
+	currentTop := p.viewport.YOffset
+
+	// Adjust viewport YOffset manually
+	// We operate on the viewport model directly to sync state
+	if cursorLine < currentTop+p.scrollOff {
+		p.viewport.SetYOffset(desiredTop)
+	} else if cursorLine >= currentTop+viewportHeight-p.scrollOff {
+		// Calculate new top to make cursor visible at bottom
+		newTop := desiredBottom - viewportHeight + 1
+		if newTop < 0 {
+			newTop = 0
+		}
+		p.viewport.SetYOffset(newTop)
+	}
+}
+
+// renderVisibleContent renders ONLY the nodes currently visible in the viewport
+func (p Pane) renderVisibleContent() string {
+	if len(p.nodes) == 0 {
+		return ""
+	}
+
+	start := p.viewport.YOffset
+	height := p.viewport.Height
+	end := start + height
+
+	// Bounds checks
+	if start < 0 {
+		start = 0
+	}
+	if start >= len(p.nodes) {
+		return "" // Scrolled past end
+	}
+	if end > len(p.nodes) {
+		end = len(p.nodes)
+	}
+
+	var b strings.Builder
+	for i := start; i < end; i++ {
+		// Render only the visible slice
+		// i is the absolute index in p.nodes
+		line := p.renderNodeLine(p.nodes[i], i == p.cursor)
+		b.WriteString(line)
+		if i < end-1 {
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}
+
+// renderNodeLine renders a single node line
+func (p Pane) renderNodeLine(node VisibleNode, isSelected bool) string {
+	return RenderNodeLine(node.Node, node.Prefix, isSelected, p.width-2)
+}
+
+// rebuildNodes rebuilds the visible nodes list when tree structure changes
+func (p *Pane) rebuildNodes() {
 	if p.treeVM == nil || p.treeVM.ViewTree == nil {
-		p.list.SetItems(nil)
+		p.nodes = []VisibleNode{}
+		p.updateViewportHeight()
 		return
 	}
 
 	// Flatten tree structure into visible nodes
-	nodes := CollectVisibleNodes(p.treeVM.ViewTree.Root)
+	p.nodes = CollectVisibleNodes(p.treeVM.ViewTree.Root)
 
-	// Convert to list.Item slice
-	items := ConvertToItems(nodes)
-	p.list.SetItems(items)
+	// Ensure cursor is valid
+	if p.cursor >= len(p.nodes) {
+		p.cursor = max(0, len(p.nodes)-1)
+	}
+
+	// Update viewport dummy content so it knows how to scroll
+	p.updateViewportHeight()
+	p.ensureCursorVisible()
+}
+
+// updateViewportHeight sets dummy content to the viewport so it calculates YOffset correctly
+func (p *Pane) updateViewportHeight() {
+	if len(p.nodes) == 0 {
+		p.viewport.SetContent("")
+		return
+	}
+	// We feed the viewport a string of just newlines.
+	// This is extremely cheap (fast) compared to rendering the tree.
+	// The viewport uses this to calculate scroll percentage and boundaries.
+	p.viewport.SetContent(strings.Repeat("\n", len(p.nodes)-1))
 }
 
 // toggleCollapse toggles the collapsed state of the selected directory
 func (p *Pane) toggleCollapse() tea.Cmd {
-	item := p.list.SelectedItem()
-	if item == nil {
+	if p.cursor < 0 || p.cursor >= len(p.nodes) {
 		return nil
 	}
 
-	treeItem := item.(TreeItem)
-	node := treeItem.node
+	node := p.nodes[p.cursor].Node
 
 	// Only directories can be collapsed/expanded
 	if node.Data.FileInfo.IsDir() {
 		node.Data.ViewInfo.Collapsed = !node.Data.ViewInfo.Collapsed
-		p.rebuildListItems()
+		p.rebuildNodes()
 
-		// Preserve selection position if possible
-		currentIndex := p.list.Index()
-		if currentIndex >= 0 && currentIndex < len(p.list.Items()) {
-			p.list.Select(currentIndex)
+		// Try to maintain cursor position
+		if p.cursor >= len(p.nodes) {
+			p.cursor = max(0, len(p.nodes)-1)
 		}
 
+		p.ensureCursorVisible()
+
 		return func() tea.Msg {
-			return NodeToggledMsg{NodeIndex: p.list.Index()}
+			return NodeToggledMsg{NodeIndex: p.cursor}
 		}
 	}
 
@@ -291,13 +402,11 @@ func (p *Pane) toggleCollapse() tea.Cmd {
 
 // handleLeftKey handles left arrow key behavior
 func (p *Pane) handleLeftKey() tea.Cmd {
-	item := p.list.SelectedItem()
-	if item == nil {
+	if p.cursor < 0 || p.cursor >= len(p.nodes) {
 		return nil
 	}
 
-	treeItem := item.(TreeItem)
-	node := treeItem.node
+	node := p.nodes[p.cursor].Node
 
 	// If current node is an expanded directory, collapse it
 	if node.Data.FileInfo.IsDir() && !node.Data.ViewInfo.Collapsed {
@@ -306,10 +415,10 @@ func (p *Pane) handleLeftKey() tea.Cmd {
 
 	// Otherwise, navigate to parent directory
 	if node.Parent != nil {
-		items := p.list.Items()
-		for i, it := range items {
-			if it.(TreeItem).node == node.Parent {
-				p.list.Select(i)
+		for i, n := range p.nodes {
+			if n.Node == node.Parent {
+				p.cursor = i
+				p.ensureCursorVisible()
 				return func() tea.Msg {
 					return TreeSelectionChangedMsg{NodeIndex: i}
 				}
@@ -320,9 +429,9 @@ func (p *Pane) handleLeftKey() tea.Cmd {
 	return nil
 }
 
-// GetList returns the underlying list model
-func (p *Pane) GetList() *list.Model {
-	return &p.list
+// GetViewport returns the underlying viewport model
+func (p *Pane) GetViewport() *viewport.Model {
+	return &p.viewport
 }
 
 // ShortHelp returns key bindings specific to the file tree pane.

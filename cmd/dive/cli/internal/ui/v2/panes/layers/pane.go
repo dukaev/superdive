@@ -305,21 +305,24 @@ func (m *Pane) handleClick(x, y int) tea.Cmd {
 		return nil
 	}
 
-	// Check if click is in stats area
-	if targetIndex < len(m.statsRows) {
-		partType, found := m.statsRows[targetIndex].GetPartAtPosition(x, StatsStartOffset)
-		if found {
-			// Click on a stats part - toggle that specific part
-			part := m.statsRows[targetIndex].GetPart(partType)
-			if part != nil {
-				part.ToggleActive()
-				m.updateContent()
-				return nil
-			}
-		}
-	}
+	// TEMPORARILY DISABLED: Click on stats (mod, new, del) to toggle visibility
+	// This functionality is disabled for now - clicks on stats will select the layer instead
+	//
+	// // Check if click is in stats area
+	// if targetIndex < len(m.statsRows) {
+	// 	partType, found := m.statsRows[targetIndex].GetPartAtPosition(x, StatsStartOffset)
+	// 	if found {
+	// 		// Click on a stats part - toggle that specific part
+	// 		part := m.statsRows[targetIndex].GetPart(partType)
+	// 		if part != nil {
+	// 			part.ToggleActive()
+	// 			m.updateContent()
+	// 			return nil
+	// 		}
+	// 	}
+	// }
 
-	// Click outside stats - select layer
+	// All clicks (including stats) select the layer
 	return m.SetLayerIndex(targetIndex)
 }
 

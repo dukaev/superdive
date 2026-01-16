@@ -5,8 +5,8 @@ import (
 	"io"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/bubbles/list"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/bubbles/v2/list"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
