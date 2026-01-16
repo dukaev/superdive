@@ -39,6 +39,16 @@ type UpdateViewModelMsg struct {
 	TreeVM *viewmodel.FileTreeViewModel
 }
 
+// SetFlatModeMsg is sent to toggle flat mode on/off
+type SetFlatModeMsg struct {
+	Flat bool
+}
+
+// SetCursorMsg is sent to set the cursor to a specific position
+type SetCursorMsg struct {
+	Index int
+}
+
 // Pane manages the file tree using viewport for smooth scrolling
 type Pane struct {
 	focused bool
@@ -53,6 +63,7 @@ type Pane struct {
 	nodes    []VisibleNode
 	cursor   int // Current selected index in nodes
 	scrollOff int // Number of lines to keep visible above/below cursor (scrolloff)
+	flatMode bool // true = Flat View, false = Tree View
 }
 
 // New creates a new tree pane with viewport for smooth scrolling
@@ -83,9 +94,9 @@ func (p *Pane) Resize(width, height int) {
 	// Calculate available height for the viewport content
 	// Layout Padding: 2 (Top Border) + 2 (Bottom Border/Title gap) = 4
 	// Header visual height: 1
-	// Critical: -1 accounts for the separator line added by RenderBox
+	// Total: 4 (BoxContentPadding) + 1 (visualHeaderHeight) = 5
 	const visualHeaderHeight = 1
-	availableHeight := height - layout.BoxContentPadding - visualHeaderHeight - 1
+	availableHeight := height - layout.BoxContentPadding - visualHeaderHeight
 	if availableHeight < 0 {
 		availableHeight = 0
 	}
@@ -163,6 +174,10 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 			return p, p.toggleCollapse()
 		case "left", "h":
 			return p, p.handleLeftKey()
+		case "f":
+			p.flatMode = !p.flatMode
+			p.rebuildNodes()
+			return p, nil
 		}
 
 	// --- MOUSE HANDLING ---
@@ -217,6 +232,19 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 	case UpdateViewModelMsg:
 		p.SetTreeVM(msg.TreeVM)
 		return p, nil
+
+	case SetFlatModeMsg:
+		// Toggle flat mode based on message
+		if p.flatMode != msg.Flat {
+			p.flatMode = msg.Flat
+			p.rebuildNodes()
+		}
+		return p, nil
+
+	case SetCursorMsg:
+		// Set cursor to specific position
+		p.SetTreeIndex(msg.Index)
+		return p, nil
 	}
 
 	// Update viewport
@@ -239,7 +267,13 @@ func (p Pane) View() string {
 	// 2. Combine header and rendered visible slice
 	fullContent := lipgloss.JoinVertical(lipgloss.Left, header, content)
 
-	return styles.RenderBox("Current Layer Contents", p.width, p.height, fullContent, p.focused)
+	// 3. Build title based on current mode
+	title := "Current Layer Contents"
+	if p.flatMode {
+		title += " (Flat)"
+	}
+
+	return styles.RenderBox(title, p.width, p.height, fullContent, p.focused)
 }
 
 // moveCursor moves the cursor by delta and ensures visibility
@@ -336,6 +370,9 @@ func (p Pane) renderVisibleContent() string {
 
 // renderNodeLine renders a single node line
 func (p Pane) renderNodeLine(node VisibleNode, isSelected bool) string {
+	if node.DisplayName != "" {
+		return RenderNodeLineWithDisplayName(node.Node, node.Prefix, node.DisplayName, isSelected, p.width-2)
+	}
 	return RenderNodeLine(node.Node, node.Prefix, isSelected, p.width-2)
 }
 
@@ -348,7 +385,12 @@ func (p *Pane) rebuildNodes() {
 	}
 
 	// Flatten tree structure into visible nodes
-	p.nodes = CollectVisibleNodes(p.treeVM.ViewTree.Root)
+	// Use different strategy based on current view mode
+	if p.flatMode {
+		p.nodes = CollectFlatNodes(p.treeVM.ViewTree.Root)
+	} else {
+		p.nodes = CollectVisibleNodes(p.treeVM.ViewTree.Root)
+	}
 
 	// Ensure cursor is valid
 	if p.cursor >= len(p.nodes) {
@@ -434,13 +476,20 @@ func (p *Pane) GetViewport() *viewport.Model {
 	return &p.viewport
 }
 
+// GetVisibleNodeCount returns the number of visible nodes in the tree
+// This is used by the search system to count matches efficiently
+func (p *Pane) GetVisibleNodeCount() int {
+	return len(p.nodes)
+}
+
 // ShortHelp returns key bindings specific to the file tree pane.
 // File tree has unique navigation keys for collapsing/expanding folders.
 func (p *Pane) ShortHelp() []key.Binding {
 	return []key.Binding{
-		keys.Keys.Enter,  // Open folder or select file
-		keys.Keys.Space,  // Toggle folder collapse/expand
-		keys.Keys.Left,   // Navigate to parent or collapse
-		keys.Keys.Right,  // Navigate into folder
+		keys.Keys.Enter,     // Open folder or select file
+		keys.Keys.Space,     // Toggle folder collapse/expand
+		keys.Keys.Left,      // Navigate to parent or collapse
+		keys.Keys.Right,     // Navigate into folder
+		keys.Keys.ToggleView, // Toggle flat/tree view
 	}
 }

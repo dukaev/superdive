@@ -2,11 +2,13 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/lrstanley/bubblezone"
 	"github.com/charmbracelet/lipgloss"
 	v1 "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1"
@@ -94,9 +96,12 @@ type Model struct {
 	// Active pane state
 	activePane Pane
 
-	// Filter state
-	filter       FilterModel
-	filterRegex  *regexp.Regexp // Compiled regex for tree filtering
+	// Search state
+	searching      bool            // Whether search mode is active
+	searchInput   textinput.Model // Search input field
+	filterRegex   *regexp.Regexp  // Compiled regex for tree filtering
+	currentMatch  int             // Index of currently selected match (-1 if no match)
+	totalMatches  int             // Total number of matches
 
 	// Layer detail modal
 	layerDetailModal LayerDetailModal
@@ -138,7 +143,14 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 	h.Styles.ShortDesc = styles.HelpStyle
 	h.Styles.Ellipsis = styles.HelpStyle
 
-	f := NewFilterModel()
+	// Initialize search input
+	ti := textinput.New()
+	ti.Placeholder = "Type to search..."
+	ti.CharLimit = 156
+	ti.Prompt = "Filter: "
+	ti.PromptStyle = styles.SearchPrefixStyle
+	ti.SetValue("")
+
 	layerDetailModal := NewLayerDetailModal()
 
 	// Create pane components
@@ -166,9 +178,12 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 		height:           24,
 		quitting:         false,
 		activePane:       PaneLayer,
+		searching:        false,
+		searchInput:      ti,
+		currentMatch:     -1,
+		totalMatches:     0,
 		keys:             keys.Keys,
 		help:             h,
-		filter:           f,
 		layerDetailModal: layerDetailModal,
 	}
 
@@ -254,12 +269,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			break
 		}
 
-		// If filter is visible, let filter handle keys
-		if m.filter.IsVisible() {
-			var cmd tea.Cmd
-			m.filter, cmd = m.filter.Update(msg)
-			cmds = append(cmds, cmd)
-			break
+		// If searching is active, handle search mode
+		if m.searching {
+			return m.updateSearch(msg)
 		}
 
 		// Route keys to focused pane
@@ -275,7 +287,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Global key bindings
 		switch msg.String() {
-		case "q", "ctrl+c", "esc":
+		case "q", "ctrl+c":
+			m.quitting = true
+			return m, tea.Quit
+
+		case "esc":
+			// ESC only quits if not searching (searching handles ESC separately)
 			m.quitting = true
 			return m, tea.Quit
 
@@ -283,12 +300,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.togglePane()
 
 		case "ctrl+f", "/":
-			m.filter.Show()
+			// Enter search mode
+			m.searching = true
+			m.searchInput.Focus()
+			m.searchInput.SetValue("")
+			m.currentMatch = -1
+			m.totalMatches = 0
+			return m, nil
 		}
-
-	case FilterAppliedMsg:
-		// User applied a filter pattern
-		m.applyFilter(msg.Pattern)
 
 	case layers.LayerChangedMsg:
 		// Layer changed - update details pane and tree via messages
@@ -479,7 +498,49 @@ func (m Model) View() string {
 	// IMPORTANT: Create new slice to avoid mutating global keys
 	allKeys := append(globalKeys, activePaneKeys...)
 
-	statusBar := m.help.View(keyMapWrapper{keys: allKeys})
+	// Render status bar: search input or help
+	var statusBar string
+	if m.searching {
+		// Render search input in status bar
+		// Check if regex is valid to determine styling
+		patternText := m.searchInput.Value()
+		var inputStyle lipgloss.Style
+
+		if patternText == "" {
+			inputStyle = styles.SearchInputStyle
+		} else {
+			// Try to compile the regex to check validity
+			if _, err := regexp.Compile(patternText); err != nil {
+				inputStyle = styles.SearchErrorStyle
+			} else {
+				inputStyle = styles.SearchInputStyle
+			}
+		}
+
+		// Re-render input with proper style (override textinput's default styling)
+		styledInput := inputStyle.Render(patternText)
+
+		// Add match counter if we have matches
+		var matchCounter string
+		if m.totalMatches > 0 {
+			if m.currentMatch >= 0 && m.currentMatch < m.totalMatches {
+				matchCounter = lipgloss.NewStyle().
+					Foreground(lipgloss.Color("#6e6e73")).
+					Render(fmt.Sprintf(" [%d/%d]", m.currentMatch+1, m.totalMatches))
+			}
+		}
+
+		// Join: styled prompt + styled input + counter
+		statusBar = lipgloss.JoinHorizontal(lipgloss.Left,
+			styles.SearchPrefixStyle.Render("Filter: "),
+			styledInput,
+			matchCounter,
+		)
+		// Fill the rest of the line
+		statusBar = lipgloss.NewStyle().Width(m.width).MaxWidth(m.width).Render(statusBar)
+	} else {
+		statusBar = m.help.View(keyMapWrapper{keys: allKeys})
+	}
 
 	// Render panes directly using their View() methods
 	// POLYMORPHISM: Access panes through interface from map
@@ -509,10 +570,6 @@ func (m Model) View() string {
 	if m.layerDetailModal.IsVisible() {
 		modalView := m.layerDetailModal.View(m.width, m.height)
 		finalView = lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modalView)
-	} else if m.filter.IsVisible() {
-		// Overlay filter modal if visible
-		modalView := m.filter.View(m.width, m.height)
-		finalView = lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modalView)
 	}
 
 	// BUBBLEZONE: Scan the entire output to register zones for hit testing
@@ -526,10 +583,17 @@ func (m *Model) applyFilter(pattern string) {
 		return
 	}
 
-	// Compile the regex pattern
+	// Compile the regex pattern (safely - don't use MustCompile)
 	var filterRegex *regexp.Regexp
 	if pattern != "" {
-		filterRegex = regexp.MustCompile(pattern)
+		var err error
+		filterRegex, err = regexp.Compile(pattern)
+		if err != nil {
+			// Invalid regex - don't update filter, keep previous state
+			// The UI will show the error in red
+			// IMPORTANT: Don't reset counters to avoid UI desync
+			return
+		}
 	}
 	m.filterRegex = filterRegex
 
@@ -541,5 +605,196 @@ func (m *Model) applyFilter(pattern string) {
 	// POLYMORPHISM: Send message through interface, no type assertion
 	newPane, _ := m.panes[PaneTree].Update(filetreepane.UpdateViewModelMsg{TreeVM: m.treeVM})
 	m.panes[PaneTree] = newPane
+
+	// Auto-Flat Mode: switch to flat mode when filtering, back to tree when empty
+	flatMode := (pattern != "")
+	newPane, _ = m.panes[PaneTree].Update(filetreepane.SetFlatModeMsg{Flat: flatMode})
+	m.panes[PaneTree] = newPane
+
+	// Count matches efficiently - get visible node count from pane
+	// Avoid double tree traversal
+	m.totalMatches = m.getVisibleNodeCount()
+	m.currentMatch = -1
+}
+
+// countMatches counts the number of files matching the current filter
+// DEPRECATED: Use getVisibleNodeCount instead for better performance
+func (m *Model) countMatches() int {
+	return m.getVisibleNodeCount()
+}
+
+// getVisibleNodeCount efficiently gets the visible node count from the tree pane
+// This avoids double tree traversal
+func (m *Model) getVisibleNodeCount() int {
+	if treePane, ok := m.panes[PaneTree]; ok {
+		// Type assertion is acceptable here for reading a property
+		// This is much faster than re-traversing the tree
+		if tp, ok := treePane.(*filetreepane.Pane); ok {
+			return tp.GetVisibleNodeCount()
+		}
+	}
+	return 0
+}
+
+// findMatchIndices returns indices of all matching nodes in the current filtered tree
+func (m *Model) findMatchIndices() []int {
+	if m.treeVM == nil || m.treeVM.ViewTree == nil {
+		return nil
+	}
+
+	// Collect all visible nodes (these are the filtered results)
+	nodes := filetreepane.CollectVisibleNodes(m.treeVM.ViewTree.Root)
+
+	// If no filter, return all indices
+	if m.filterRegex == nil {
+		indices := make([]int, len(nodes))
+		for i := range nodes {
+			indices[i] = i
+		}
+		return indices
+	}
+
+	// Find nodes that match the filter
+	var indices []int
+	for i, node := range nodes {
+		if m.filterRegex.MatchString(node.Node.Path()) {
+			indices = append(indices, i)
+		}
+	}
+
+	return indices
+}
+
+// updateSearch handles key presses when in search mode
+// Implements "passthrough navigation" - arrow keys are forwarded to tree pane
+func (m Model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "enter":
+			// Jump to first match and exit search mode
+			m.jumpToMatch(0)
+			m.searching = false
+			m.searchInput.Blur()
+
+			// CRITICAL FIX: Switch focus to the tree pane
+			// If user started search from Layers pane, focus should go to Tree after Enter
+			m.activePane = PaneTree
+			m.sendFocusStates()
+
+			return m, nil
+
+		case "esc":
+			// Exit search mode, clear filter
+			m.searching = false
+			m.searchInput.Blur()
+			m.searchInput.SetValue("")
+			m.currentMatch = -1
+			m.totalMatches = 0
+			m.applyFilter("") // Clear filter
+			// Disable flat mode
+			newPane, _ := m.panes[PaneTree].Update(filetreepane.SetFlatModeMsg{Flat: false})
+			m.panes[PaneTree] = newPane
+			return m, nil
+
+		case "n":
+			// Jump to next match
+			if m.totalMatches > 0 {
+				nextMatch := m.currentMatch + 1
+				if nextMatch >= m.totalMatches {
+					nextMatch = 0 // Wrap around
+				}
+				m.jumpToMatch(nextMatch)
+			}
+			return m, nil
+
+		case "up", "k", "down", "j":
+			// PASSTHROUGH: Forward navigation keys to tree pane
+			// This allows navigating the filtered tree while still in search mode
+			if treePane, ok := m.panes[PaneTree]; ok {
+				updatedPane, cmd := treePane.Update(msg)
+				m.panes[PaneTree] = updatedPane
+				cmds = append(cmds, cmd)
+			}
+			return m, tea.Batch(cmds...)
+
+		case "ctrl+n":
+			// Alternative down key (Vim-style)
+			if treePane, ok := m.panes[PaneTree]; ok {
+				downMsg := tea.KeyMsg{Type: tea.KeyDown, Runes: []rune{'j'}}
+				updatedPane, cmd := treePane.Update(downMsg)
+				m.panes[PaneTree] = updatedPane
+				cmds = append(cmds, cmd)
+			}
+			return m, tea.Batch(cmds...)
+
+		case "ctrl+p":
+			// Alternative up key (Vim-style)
+			if treePane, ok := m.panes[PaneTree]; ok {
+				upMsg := tea.KeyMsg{Type: tea.KeyUp, Runes: []rune{'k'}}
+				updatedPane, cmd := treePane.Update(upMsg)
+				m.panes[PaneTree] = updatedPane
+				cmds = append(cmds, cmd)
+			}
+			return m, tea.Batch(cmds...)
+
+		default:
+			// Regular text input - update search field and apply filter in real-time
+			var cmd tea.Cmd
+			m.searchInput, cmd = m.searchInput.Update(msg)
+
+			// Apply filter immediately (real-time filtering)
+			patternText := m.searchInput.Value()
+
+			if patternText != "" {
+				m.applyFilter(patternText)
+			} else {
+				// Empty pattern - clear filter
+				m.totalMatches = 0
+				m.currentMatch = -1
+			}
+
+			return m, cmd
+		}
+	}
+
+	// Update help model
+	var cmd tea.Cmd
+	m.help, cmd = m.help.Update(msg)
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
+}
+
+// jumpToMatch moves the cursor to the specified match index
+func (m *Model) jumpToMatch(matchIndex int) {
+	if m.totalMatches == 0 {
+		return
+	}
+
+	// Ensure match index is in bounds
+	if matchIndex < 0 || matchIndex >= m.totalMatches {
+		return
+	}
+
+	m.currentMatch = matchIndex
+
+	// Get match indices
+	matchIndices := m.findMatchIndices()
+	if matchIndex >= len(matchIndices) {
+		return
+	}
+
+	// Set cursor to the match position
+	targetIndex := matchIndices[matchIndex]
+
+	// FIXED: Send message instead of type assertion
+	// This respects the Elm Architecture and proper data flow
+	if treePane, ok := m.panes[PaneTree]; ok {
+		updatedPane, _ := treePane.Update(filetreepane.SetCursorMsg{Index: targetIndex})
+		m.panes[PaneTree] = updatedPane
+	}
 }
 

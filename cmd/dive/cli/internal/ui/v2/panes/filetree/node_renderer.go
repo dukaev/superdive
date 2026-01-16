@@ -15,13 +15,14 @@ func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix s
 	if node == nil {
 		return
 	}
-	row := RenderRow(node, prefix, isSelected, width)
+	row := RenderRow(node, prefix, "", isSelected, width)
 	sb.WriteString(row)
 	sb.WriteString("\n")
 }
 
 // RenderRow renders a single tree node row using lipgloss.JoinHorizontal for clean layout
-func RenderRow(node *filetree.FileNode, prefix string, isSelected bool, width int) string {
+// displayName is optional - if empty, node.Name will be used
+func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int) string {
 	// 1. Icon and color
 	icon := styles.IconFile
 	color := styles.DiffNormalColor
@@ -62,7 +63,10 @@ func RenderRow(node *filetree.FileNode, prefix string, isSelected bool, width in
 	}
 
 	// Format name with symlink target
-	name := node.Name
+	name := displayName
+	if name == "" {
+		name = node.Name
+	}
 	if name == "" {
 		name = "/"
 	}
@@ -133,11 +137,11 @@ func RenderRow(node *filetree.FileNode, prefix string, isSelected bool, width in
 	}
 
 	// Truncate name if needed
-	displayName := name
+	truncatedName := name
 	if runewidth.StringWidth(name) > availableForName {
-		displayName = runewidth.Truncate(name, availableForName, "…")
+		truncatedName = runewidth.Truncate(name, availableForName, "…")
 	}
-	styledName := nameStyle.Render(displayName)
+	styledName := nameStyle.Render(truncatedName)
 
 	// 8. Calculate flexible padding to push metadata to right edge
 	contentWidth := fixedPartWidth + lipgloss.Width(styledName) + metaBlockWidth
@@ -162,5 +166,11 @@ func RenderRow(node *filetree.FileNode, prefix string, isSelected bool, width in
 // RenderNodeLine renders a single node line for viewport.
 // This is a convenience wrapper around RenderRow.
 func RenderNodeLine(node *filetree.FileNode, prefix string, isSelected bool, width int) string {
-	return RenderRow(node, prefix, isSelected, width)
+	return RenderRow(node, prefix, "", isSelected, width)
+}
+
+// RenderNodeLineWithDisplayName renders a single node line with a custom display name.
+// This is used for flat view where the full path is shown instead of just the name.
+func RenderNodeLineWithDisplayName(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int) string {
+	return RenderRow(node, prefix, displayName, isSelected, width)
 }

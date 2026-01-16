@@ -147,3 +147,24 @@ var MetaDataStyle = lipgloss.NewStyle().
 // HelpStyle for help/instruction bar at the bottom (gray, muted)
 var HelpStyle = lipgloss.NewStyle().
 	Foreground(GrayColor)
+
+// --- Search Bar Styles ---
+
+// SearchPrefixStyle for the "Filter:" prefix in search bar
+var SearchPrefixStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#1C1C1E")). // Dark text
+	Background(PrimaryColor).              // Accent background (blue)
+	Bold(true).
+	Padding(0, 1)
+
+// SearchInputStyle for the search input text (blue like the prefix)
+var SearchInputStyle = lipgloss.NewStyle().
+	Foreground(PrimaryColor).              // Blue text (accent color)
+	Background(lipgloss.Color("#3A3A3C")). // Dark gray status bar background
+	Padding(0, 1)
+
+// SearchErrorStyle for invalid regex indication
+var SearchErrorStyle = lipgloss.NewStyle().
+	Foreground(ErrorColor). // Red text on error
+	Background(lipgloss.Color("#3A3A3C")).
+	Padding(0, 1)

@@ -9,8 +9,9 @@ import (
 
 // VisibleNode represents a node with its tree prefix for rendering
 type VisibleNode struct {
-	Node   *filetree.FileNode
-	Prefix string // Tree guide prefix, e.g. "│   ├── ", "└── "
+	Node        *filetree.FileNode
+	Prefix      string // Tree guide prefix, e.g. "│   ├── ", "└── "
+	DisplayName string // Display name (empty for tree view, full path for flat view)
 }
 
 // CollectVisibleNodes collects all visible nodes with tree guide prefixes
@@ -41,7 +42,7 @@ func CollectVisibleNodes(root *filetree.FileNode) []VisibleNode {
 			} else {
 				// Parent levels (indentation) - 2 chars
 				if isLast {
-					prefixBuilder.WriteString("  ") // Was "    "
+					prefixBuilder.WriteString(" ") // Was "    "
 				} else {
 					prefixBuilder.WriteString("│ ") // Was "│   "
 				}
@@ -81,6 +82,36 @@ func CollectVisibleNodes(root *filetree.FileNode) []VisibleNode {
 		}
 	}
 
+	return nodes
+}
+
+// CollectFlatNodes collects all nodes as a flat list sorted by path
+func CollectFlatNodes(root *filetree.FileNode) []VisibleNode {
+	var nodes []VisibleNode
+
+	var traverse func(*filetree.FileNode)
+	traverse = func(node *filetree.FileNode) {
+		if node == nil {
+			return
+		}
+
+		// Add node (except root, which has no parent)
+		if node.Parent != nil {
+			nodes = append(nodes, VisibleNode{
+				Node:        node,
+				Prefix:      "", // No prefix in flat mode
+				DisplayName: node.Path(), // Use full path
+			})
+		}
+
+		// Recursively process all children (ignore collapsed state)
+		sortedChildren := SortChildren(node.Children)
+		for _, child := range sortedChildren {
+			traverse(child)
+		}
+	}
+
+	traverse(root)
 	return nodes
 }
 

@@ -4,7 +4,7 @@
 │Current Layer Contents                          │
 │                                                │
 │Name                Size    UID:GID  Permissions│
-│No items.                                       │
+│                                                │
 │                                                │
 │                                                │
 │                                                │
@@ -31,7 +31,7 @@
 ││ ├─󰈔 [           1.0 MB          -   -rwxr-xr-x│
 ││ ├─󰈔 [[             0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 acpid          0 B          -   -rwxr-xr-x│
-││ ├─󰈔 add-shell      0 B          -   -rwxr-xr-x│
+││ ├─󰈔 add-she…       0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 addgroup       0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 adduser        0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 adjtimex       0 B          -   -rwxr-xr-x│
@@ -54,7 +54,7 @@
 ││ ├─󰈔 [           1.0 MB          -   -rwxr-xr-x│
 ││ ├─󰈔 [[             0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 acpid          0 B          -   -rwxr-xr-x│
-││ ├─󰈔 add-shell      0 B          -   -rwxr-xr-x│
+││ ├─󰈔 add-she…       0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 addgroup       0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 adduser        0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 adjtimex       0 B          -   -rwxr-xr-x│
@@ -69,42 +69,42 @@
 ---
 
 [TestPane_View_SmallWidth - 1]
-╭──────────────────────────────────╮
-│Current Layer Contents            │
-│                                  │
-│Name     Size    UID:GID          │
-│Permissions                       │
-│├─󰝰 bin                   -       │
-│drwxr-xr-x                        │
-││ ├─󰈔 [   1.0 MB          -       │
-│-rwxr-xr-x                        │
-││ ├─󰈔 [[      0 B          -      │
-│-rwxr-xr-x                        │
-││ ├─󰈔 acpid      0 B              │
-│-   -rwxr-xr-x                    │
-││ ├─󰈔 add-shell      0 B          │
-│-   -rwxr-xr-x                    │
-││ ├─󰈔 addgroup      0 B           │
-│-   -rwxr-xr-x                    │
-││ ├─󰈔 adduser      0 B            │
-│-   -rwxr-xr-x                    │
-││ ├─󰈔 adjtimex      0 B           │
-│-   -rwxr-xr-x                    │
-││ ├─󰈔 ar      0 B          -      │
-│-rwxr-xr-x                        │
-││ ├─󰈔 arch      0 B               │
-│-   -rwxr-xr-x                    │
-││ ├─󰈔 arp      0 B                │
-│-   -rwxr-xr-x                    │
-││ ├─󰈔 arping      0 B             │
-│-   -rwxr-xr-x                    │
-││ ├─󰈔 ash      0 B                │
-│-   -rwxr-xr-x                    │
-││ ├─󰈔 awk      0 B                │
-│-   -rwxr-xr-x                    │
-││ ├─󰈔 base64      0 B             │
-│-   -rwxr-xr-x                    │
-╰──────────────────────────────────╯
+╭───────────────────────────────╮
+│Current Layer Contents         │
+│                               │
+│Name     Size    UID:GID       │
+│Permissions                    │
+│├─󰝰 bin                   -    │
+│drwxr-xr-x                     │
+││ ├─󰈔 [   1.0 MB          -    │
+│-rwxr-xr-x                     │
+││ ├─󰈔 [[      0 B          -   │
+│-rwxr-xr-x                     │
+││ ├─󰈔 acpid      0 B           │
+│-   -rwxr-xr-x                 │
+││ ├─󰈔 add-…      0 B           │
+│-   -rwxr-xr-x                 │
+││ ├─󰈔 addg…      0 B           │
+│-   -rwxr-xr-x                 │
+││ ├─󰈔 addu…      0 B           │
+│-   -rwxr-xr-x                 │
+││ ├─󰈔 adjt…      0 B           │
+│-   -rwxr-xr-x                 │
+││ ├─󰈔 ar      0 B          -   │
+│-rwxr-xr-x                     │
+││ ├─󰈔 arch      0 B            │
+│-   -rwxr-xr-x                 │
+││ ├─󰈔 arp      0 B             │
+│-   -rwxr-xr-x                 │
+││ ├─󰈔 arpi…      0 B           │
+│-   -rwxr-xr-x                 │
+││ ├─󰈔 ash      0 B             │
+│-   -rwxr-xr-x                 │
+││ ├─󰈔 awk      0 B             │
+│-   -rwxr-xr-x                 │
+││ ├─󰈔 base…      0 B           │
+│-   -rwxr-xr-x                 │
+╰───────────────────────────────╯
 ---
 
 [TestPane_View_SmallHeight - 1]
@@ -170,7 +170,7 @@
 ││ ├─󰈔 [           1.0 MB          -   -rwxr-xr-x│
 ││ ├─󰈔 [[             0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 acpid          0 B          -   -rwxr-xr-x│
-││ ├─󰈔 add-shell      0 B          -   -rwxr-xr-x│
+││ ├─󰈔 add-she…       0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 addgroup       0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 adduser        0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 adjtimex       0 B          -   -rwxr-xr-x│
@@ -184,11 +184,10 @@
 │Current Layer Contents                          │
 │                                                │
 │Name                Size    UID:GID  Permissions│
-│├─󰝰 bin                           -   drwxr-xr-x│
 ││ ├─󰈔 [           1.0 MB          -   -rwxr-xr-x│
 ││ ├─󰈔 [[             0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 acpid          0 B          -   -rwxr-xr-x│
-││ ├─󰈔 add-shell      0 B          -   -rwxr-xr-x│
+││ ├─󰈔 add-she…       0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 addgroup       0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 adduser        0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 adjtimex       0 B          -   -rwxr-xr-x│
@@ -199,5 +198,6 @@
 ││ ├─󰈔 ash            0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 awk            0 B          -   -rwxr-xr-x│
 ││ ├─󰈔 base64         0 B          -   -rwxr-xr-x│
+││ ├─󰈔 basename       0 B          -   -rwxr-xr-x│
 ╰────────────────────────────────────────────────╯
 ---
