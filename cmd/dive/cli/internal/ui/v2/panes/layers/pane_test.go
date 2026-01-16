@@ -13,7 +13,7 @@ import (
 func TestPane_View_EmptyState(t *testing.T) {
 	// Test with nil layerVM
 	pane := New(nil, testutils.LoadTestImage(t).Comparer)
-	pane.SetSize(50, 20)
+	pane.Resize(50, 20)
 
 	view := pane.View()
 	snaps.MatchSnapshot(t, view)
@@ -30,7 +30,7 @@ func TestPane_View_WithLayers(t *testing.T) {
 	}
 
 	pane := New(layerVM, testData.Comparer)
-	pane.SetSize(80, 20)
+	pane.Resize(80, 20)
 
 	// Initialize the pane
 	cmd := pane.Init()
@@ -51,12 +51,12 @@ func TestPane_View_Focused(t *testing.T) {
 	}
 
 	pane := New(layerVM, testData.Comparer)
-	pane.SetSize(80, 20)
+	pane.Resize(80, 20)
 
 	// Send focus message
 	updatedPane, _ := pane.Update(FocusStateMsg{Focused: true})
 
-	view := updatedPane.(Pane).View()
+	view := updatedPane.(*Pane).View()
 	snaps.MatchSnapshot(t, view)
 }
 
@@ -71,7 +71,7 @@ func TestPane_View_SmallWidth(t *testing.T) {
 	}
 
 	pane := New(layerVM, testData.Comparer)
-	pane.SetSize(40, 20) // Narrow width
+	pane.Resize(40, 20) // Narrow width
 
 	view := pane.View()
 	snaps.MatchSnapshot(t, view)
@@ -88,7 +88,7 @@ func TestPane_View_SmallHeight(t *testing.T) {
 	}
 
 	pane := New(layerVM, testData.Comparer)
-	pane.SetSize(80, 5) // Very short height
+	pane.Resize(80, 5) // Very short height
 
 	view := pane.View()
 	snaps.MatchSnapshot(t, view)
@@ -105,7 +105,7 @@ func TestPane_View_LargeSize(t *testing.T) {
 	}
 
 	pane := New(layerVM, testData.Comparer)
-	pane.SetSize(120, 40) // Large dimensions
+	pane.Resize(120, 40) // Large dimensions
 
 	view := pane.View()
 	snaps.MatchSnapshot(t, view)
@@ -122,7 +122,7 @@ func TestPane_View_SecondLayerSelected(t *testing.T) {
 	}
 
 	pane := New(layerVM, testData.Comparer)
-	pane.SetSize(80, 20)
+	pane.Resize(80, 20)
 
 	view := pane.View()
 	snaps.MatchSnapshot(t, view)
@@ -145,6 +145,6 @@ func TestPane_Update_WithLayoutMsg(t *testing.T) {
 	updatedPane, _ := pane.Update(layoutMsg)
 
 	// Verify size was updated
-	view := updatedPane.(Pane).View()
+	view := updatedPane.(*Pane).View()
 	snaps.MatchSnapshot(t, view)
 }

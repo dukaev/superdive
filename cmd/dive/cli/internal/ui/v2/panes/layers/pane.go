@@ -13,6 +13,7 @@ import (
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/components"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/domain"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
 	"github.com/wagoodman/dive/dive/filetree"
@@ -55,7 +56,7 @@ type Pane struct {
 	viewport         viewport.Model
 	layerIndex       int
 	statsRows        []components.FileStatsRow // Stats row for each layer
-	statsCache       []utils.FileStats         // Cached statistics for each layer (calculated once)
+	statsCache       []domain.FileStats         // Cached statistics for each layer (calculated once)
 }
 
 // New creates a new layers pane
@@ -96,7 +97,7 @@ func (m *Pane) precalculateStats() {
 	}
 
 	// Pre-allocate cache for all layers
-	m.statsCache = make([]utils.FileStats, len(m.layerVM.Layers))
+	m.statsCache = make([]domain.FileStats, len(m.layerVM.Layers))
 
 	// Calculate stats for each layer
 	for i, layer := range m.layerVM.Layers {
@@ -126,12 +127,12 @@ func (m *Pane) precalculateStats() {
 		}
 
 		// Calculate stats ONCE per layer (heavy tree traversal)
-		m.statsCache[i] = utils.CalculateFileStats(treeToCompare)
+		m.statsCache[i] = domain.CalculateFileStats(treeToCompare)
 	}
 }
 
-// SetSize updates the pane dimensions
-func (m *Pane) SetSize(width, height int) {
+// Resize updates the pane dimensions
+func (m *Pane) Resize(width, height int) {
 	m.width = width
 	m.height = height
 
@@ -146,6 +147,11 @@ func (m *Pane) SetSize(width, height int) {
 
 	// CRITICAL: Regenerate content with new width for proper truncation
 	m.updateContent()
+}
+
+// SetFocused sets the focus state of the pane
+func (m *Pane) SetFocused(focused bool) {
+	m.focused = focused
 }
 
 // SetLayerVM updates the layer viewmodel
@@ -173,25 +179,25 @@ func (m *Pane) SetLayerIndex(index int) tea.Cmd {
 }
 
 // Init initializes the pane
-func (m Pane) Init() tea.Cmd {
+func (m *Pane) Init() tea.Cmd {
 	m.updateContent()
 	return nil
 }
 
-// Update handles messages
-func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// Update handles messages and returns the updated Pane
+func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case common.LayoutMsg:
-		// Parent sends layout info instead of calling SetSize()
+		// Parent sends layout info instead of calling Resize()
 		// Extract what we need from the message
-		m.SetSize(msg.LeftWidth, msg.LayersHeight)
+		m.Resize(msg.LeftWidth, msg.LayersHeight)
 		return m, nil
 
 	case FocusStateMsg:
-		// Parent controls focus state - this is the Single Source of Truth pattern
-		m.focused = msg.Focused
+		// Parent controls focus state - use SetFocused method
+		m.SetFocused(msg.Focused)
 		return m, nil
 
 	case tea.KeyMsg:

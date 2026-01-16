@@ -71,8 +71,8 @@ func New(treeVM *viewmodel.FileTreeViewModel) Pane {
 	return p
 }
 
-// SetSize updates the pane dimensions
-func (p *Pane) SetSize(width, height int) {
+// Resize updates the pane dimensions
+func (p *Pane) Resize(width, height int) {
 	p.width = width
 	p.height = height
 
@@ -108,21 +108,26 @@ func (p *Pane) GetTreeIndex() int {
 }
 
 // Init initializes the pane
-func (p Pane) Init() tea.Cmd {
+func (p *Pane) Init() tea.Cmd {
 	return nil
 }
 
+// SetFocused sets the focus state of the pane
+func (p *Pane) SetFocused(focused bool) {
+	p.focused = focused
+}
+
 // Update handles messages
-func (p Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case common.LayoutMsg:
-		p.SetSize(msg.RightWidth, msg.TreeHeight)
+		p.Resize(msg.RightWidth, msg.TreeHeight)
 		return p, nil
 
 	case FocusStateMsg:
-		p.focused = msg.Focused
+		p.SetFocused(msg.Focused)
 		return p, nil
 
 	case common.LocalMouseMsg:

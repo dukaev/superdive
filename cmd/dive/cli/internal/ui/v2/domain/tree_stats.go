@@ -1,4 +1,4 @@
-package utils
+package domain
 
 import (
 	"github.com/wagoodman/dive/dive/filetree"
@@ -11,7 +11,8 @@ type FileStats struct {
 	Removed  int
 }
 
-// CalculateFileStats walks the file tree and counts file changes
+// CalculateFileStats walks the file tree and counts file changes.
+// This is a pure function that extracts business logic from the UI layer.
 func CalculateFileStats(tree *filetree.FileTree) FileStats {
 	stats := FileStats{}
 

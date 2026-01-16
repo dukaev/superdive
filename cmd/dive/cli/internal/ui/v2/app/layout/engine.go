@@ -98,3 +98,63 @@ func (r Result) GetViewportDimensions(paneWidth, paneHeight int) (width, height 
 
 	return width, height
 }
+
+// PaneID represents a pane identifier (matches app.Pane values)
+type PaneID int
+
+const (
+	PaneIDLayer   PaneID = 0
+	PaneIDDetails PaneID = 1
+	PaneIDImage   PaneID = 2
+	PaneIDTree    PaneID = 3
+)
+
+// GetPaneAt determines which pane is at the given global coordinates.
+// Returns: (paneID, localX, localY, found)
+//
+// Parameters:
+//   - x, y: Global screen coordinates
+//   - totalWidth: Total screen width
+//
+// The returned localX, localY are coordinates relative to the pane's content area
+// (accounting for borders and titles as appropriate).
+func (r Result) GetPaneAt(x, y, totalWidth int) (PaneID, int, int, bool) {
+	// Check bounds
+	if x < 0 || y < r.ContentStartY {
+		return 0, 0, 0, false
+	}
+
+	// Determine which column
+	inLeftCol := x < r.LeftWidth
+	inRightCol := x >= r.LeftWidth && x < totalWidth
+
+	if inLeftCol {
+		// Determine which pane in left column
+		layersEndY := r.ContentStartY + r.LayersHeight
+		detailsEndY := layersEndY + r.DetailsHeight
+
+		if y < layersEndY {
+			// Layers pane
+			localX := x
+			localY := y - r.ContentStartY
+			return PaneIDLayer, localX, localY, true
+		} else if y >= layersEndY && y < detailsEndY {
+			// Details pane (read-only)
+			localX := x
+			localY := y - layersEndY
+			return PaneIDDetails, localX, localY, true
+		} else {
+			// Image pane
+			localX := x
+			localY := y - detailsEndY
+			return PaneIDImage, localX, localY, true
+		}
+	} else if inRightCol {
+		// Tree pane
+		localX := x - r.LeftWidth
+		localY := y - r.ContentStartY
+		return PaneIDTree, localX, localY, true
+	}
+
+	return 0, 0, 0, false
+}

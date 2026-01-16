@@ -11,6 +11,7 @@ import (
 
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/domain"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
 	"github.com/wagoodman/dive/dive/image"
@@ -44,8 +45,8 @@ func New(analysis *image.Analysis) Pane {
 	return p
 }
 
-// SetSize updates the pane dimensions
-func (m *Pane) SetSize(width, height int) {
+// Resize updates the pane dimensions
+func (m *Pane) Resize(width, height int) {
 	m.width = width
 	m.height = height
 
@@ -69,25 +70,30 @@ func (m *Pane) SetAnalysis(analysis *image.Analysis) {
 }
 
 // Init initializes the pane
-func (m Pane) Init() tea.Cmd {
+func (m *Pane) Init() tea.Cmd {
 	m.updateContent()
 	return nil
 }
 
+// SetFocused sets the focus state of the pane
+func (m *Pane) SetFocused(focused bool) {
+	m.focused = focused
+}
+
 // Update handles messages
-func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case common.LayoutMsg:
-		// Parent sends layout info instead of calling SetSize()
+		// Parent sends layout info instead of calling Resize()
 		// Extract what we need from the message
-		m.SetSize(msg.LeftWidth, msg.ImageHeight)
+		m.Resize(msg.LeftWidth, msg.ImageHeight)
 		return m, nil
 
 	case FocusStateMsg:
-		// Parent controls focus state - this is the Single Source of Truth pattern
-		m.focused = msg.Focused
+		// Parent controls focus state - use SetFocused method
+		m.SetFocused(msg.Focused)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -141,17 +147,17 @@ func (m *Pane) updateContent() {
 func (m *Pane) generateContent() string {
 	width := m.width - 2 // Subtract borders
 
-	// Count files > 0 bytes
-	filesGreaterThanZeroKB := m.countFilesAboveZeroBytes()
+	// Calculate stats using domain logic (pure function, no side effects)
+	stats := domain.CalculateImageStats(m.analysis)
 
 	// Header with statistics
 	headerText := fmt.Sprintf(
 		"Image name: %s\nTotal Image size: %s\nPotential wasted space: %s\nImage efficiency score: %.0f%%\nFiles > 0 KB total: %d",
-		m.analysis.Image,
-		utils.FormatSize(m.analysis.SizeBytes),
-		utils.FormatSize(m.analysis.WastedBytes),
-		m.analysis.Efficiency*100,
-		filesGreaterThanZeroKB,
+		stats.ImageName,
+		utils.FormatSize(stats.TotalSizeBytes),
+		utils.FormatSize(stats.WastedBytes),
+		stats.EfficiencyScore,
+		stats.FilesAboveZeroKB,
 	)
 
 	// Table header
@@ -180,21 +186,4 @@ func (m *Pane) generateContent() string {
 	}
 
 	return fullContent.String()
-}
-
-// countFilesAboveZeroBytes counts the total number of files with size > 0 bytes across all inefficiencies
-func (m *Pane) countFilesAboveZeroBytes() int {
-	if m.analysis == nil {
-		return 0
-	}
-
-	count := 0
-	for _, ineff := range m.analysis.Inefficiencies {
-		for _, node := range ineff.Nodes {
-			if node.Size > 0 {
-				count++
-			}
-		}
-	}
-	return count
 }

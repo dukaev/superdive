@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"regexp"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/help"
@@ -52,15 +53,22 @@ func (p Pane) String() string {
 	return "Unknown"
 }
 
-// LayoutCache stores calculated pane dimensions to avoid recalculating in View and Mouse
-type LayoutCache struct {
-	ContentStartY int
-	LeftWidth     int
-	RightWidth    int
-	LayersHeight  int
-	DetailsHeight int
-	ImageHeight   int
-	TreeHeight    int
+// mapLayoutPaneToAppPane safely converts layout.PaneID to app.Pane
+// This prevents bugs if the order of constants changes in either package
+func mapLayoutPaneToAppPane(id layout.PaneID) Pane {
+	switch id {
+	case layout.PaneIDLayer:
+		return PaneLayer
+	case layout.PaneIDDetails:
+		return PaneDetails
+	case layout.PaneIDImage:
+		return PaneImage
+	case layout.PaneIDTree:
+		return PaneTree
+	default:
+		// Fallback to Layers if unknown
+		return PaneLayer
+	}
 }
 
 // Model is the bubbletea Model for V2UI
@@ -79,19 +87,18 @@ type Model struct {
 	width    int
 	height   int
 	quitting bool
-	layout   LayoutCache
+	layout   layout.Result // Stores calculated pane dimensions from layout engine
 
-	// Pane components (independent tea.Models)
-	layersPane  layers.Pane
-	detailsPane details.Pane
-	imagePane   imagepane.Pane
-	treePane    filetreepane.Pane
+	// Panes stored by interface (polymorphic access)
+	// No need for concrete types - interface handles everything
+	panes map[Pane]common.Pane
 
 	// Active pane state
 	activePane Pane
 
 	// Filter state
-	filter FilterModel
+	filter       FilterModel
+	filterRegex  *regexp.Regexp // Compiled regex for tree filtering
 
 	// Layer detail modal
 	layerDetailModal LayerDetailModal
@@ -143,6 +150,7 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 	treePane := filetreepane.New(treeVM)
 
 	// Create model with initial dimensions
+	// POLYMORPHISM: Store all panes as common.Pane interface
 	model := Model{
 		analysis:         analysis,
 		content:          content,
@@ -150,10 +158,12 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 		ctx:              ctx,
 		layerVM:          layerVM,
 		treeVM:           treeVM,
-		layersPane:       layersPane,
-		detailsPane:      detailsPane,
-		imagePane:        imagePane,
-		treePane:         treePane,
+		panes: map[Pane]common.Pane{
+			PaneLayer:   &layersPane,
+			PaneDetails: &detailsPane,
+			PaneImage:   &imagePane,
+			PaneTree:    &treePane,
+		},
 		width:            80,
 		height:           24,
 		quitting:         false,
@@ -178,18 +188,12 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 		TreeHeight:    model.layout.TreeHeight,
 	}
 
-	// Update panes with initial layout
-	newLayers, _ := model.layersPane.Update(layoutMsg)
-	model.layersPane = newLayers.(layers.Pane)
-
-	newDetails, _ := model.detailsPane.Update(layoutMsg)
-	model.detailsPane = newDetails.(details.Pane)
-
-	newImage, _ := model.imagePane.Update(layoutMsg)
-	model.imagePane = newImage.(imagepane.Pane)
-
-	newTree, _ := model.treePane.Update(layoutMsg)
-	model.treePane = newTree.(filetreepane.Pane)
+	// Update all panes with initial layout
+	// POLYMORPHISM: Same code for all panes, no type assertions needed!
+	for paneType, pane := range model.panes {
+		updatedPane, _ := pane.Update(layoutMsg)
+		model.panes[paneType] = updatedPane
+	}
 
 	return model
 }
@@ -211,8 +215,9 @@ func (m Model) Init() tea.Cmd {
 				Layer:      m.layerVM.Layers[layerIndex],
 				LayerIndex: layerIndex,
 			}
-			newDetails, _ := m.detailsPane.Update(layerMsg)
-			m.detailsPane = newDetails.(details.Pane)
+			// POLYMORPHISM: Update pane through interface, no type assertion
+			newDetails, _ := m.panes[PaneDetails].Update(layerMsg)
+			m.panes[PaneDetails] = newDetails
 		}
 	}
 
@@ -260,24 +265,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Route keys to focused pane
-		switch m.activePane {
-		case PaneLayer:
-			newPane, cmd := m.layersPane.Update(msg)
-			m.layersPane = newPane.(layers.Pane)
-			cmds = append(cmds, cmd)
-
-		case PaneDetails:
-			// Details pane is read-only, no keyboard handling
-
-		case PaneImage:
-			newPane, cmd := m.imagePane.Update(msg)
-			m.imagePane = newPane.(imagepane.Pane)
-			cmds = append(cmds, cmd)
-
-		case PaneTree:
-			newPane, cmd := m.treePane.Update(msg)
-			m.treePane = newPane.(filetreepane.Pane)
-			cmds = append(cmds, cmd)
+		// POLYMORPHISM: No switch-case needed - just get the active pane from the map!
+		if activePane, ok := m.panes[m.activePane]; ok {
+			// Details pane is read-only, skip it
+			if m.activePane != PaneDetails {
+				updatedPane, cmd := activePane.Update(msg)
+				m.panes[m.activePane] = updatedPane
+				cmds = append(cmds, cmd)
+			}
 		}
 
 		// Global key bindings
@@ -293,6 +288,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.filter.Show()
 		}
 
+	case FilterAppliedMsg:
+		// User applied a filter pattern
+		m.applyFilter(msg.Pattern)
+
 	case layers.LayerChangedMsg:
 		// Layer changed - update details pane and tree via messages
 		if m.layerVM != nil && msg.LayerIndex >= 0 && msg.LayerIndex < len(m.layerVM.Layers) {
@@ -300,8 +299,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Layer:      m.layerVM.Layers[msg.LayerIndex],
 				LayerIndex: msg.LayerIndex,
 			}
-			newDetails, _ := m.detailsPane.Update(layerMsg)
-			m.detailsPane = newDetails.(details.Pane)
+			// POLYMORPHISM: Update through interface
+			newDetails, _ := m.panes[PaneDetails].Update(layerMsg)
+			m.panes[PaneDetails] = newDetails
 		}
 		m.updateTreeForCurrentLayer()
 
@@ -310,88 +310,51 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// CRITICAL: This fixes the copy-on-write issue. The InputHandler's callback
 		// modified the collapsed flag in the tree data, but the visible copy of
 		// treePane (stored in this Model) needs to refresh its cache to show changes.
-		newPane, cmd := m.treePane.Update(msg)
-		m.treePane = newPane.(filetreepane.Pane)
+		// POLYMORPHISM: Update through interface
+		newPane, cmd := m.panes[PaneTree].Update(msg)
+		m.panes[PaneTree] = newPane
 		cmds = append(cmds, cmd)
 
 	case filetreepane.RefreshTreeContentMsg:
 		// Request to refresh tree content
-		m.treePane.SetTreeVM(m.treeVM)
+		// NOTE: SetTreeVM is tree-specific, so we need a type assertion here
+		// This is acceptable since it's a one-time operation for tree-specific functionality
+		if treePane, ok := m.panes[PaneTree].(*filetreepane.Pane); ok {
+			treePane.SetTreeVM(m.treeVM)
+		}
 
 	case layers.ShowLayerDetailMsg:
 		// Show layer detail modal
 		m.layerDetailModal.Show(msg.Layer)
 
 	case tea.MouseMsg:
-		// Route mouse events to appropriate pane with coordinate transformation
-		// Parent handles ALL coordinate math - children receive simple local coordinates
-		x, y := msg.X, msg.Y
-		l := m.layout
+		// Layout engine determines which pane was clicked and provides local coordinates
+		// This encapsulates hit testing logic in the layout layer
+		paneID, localX, localY, found := m.layout.GetPaneAt(msg.X, msg.Y, m.width)
 
-		inLeftCol := x >= 0 && x < l.LeftWidth
-		inRightCol := x >= l.LeftWidth && x < m.width
+		if found {
+			// SAFETY: Use explicit mapping instead of type conversion
+			// This prevents bugs if constant order changes in either package
+			targetPane := mapLayoutPaneToAppPane(paneID)
 
-		if inLeftCol {
-			// Determine which pane in left column
-			layersEndY := l.ContentStartY + l.LayersHeight
-			detailsEndY := layersEndY + l.DetailsHeight
-
-			if y < layersEndY {
-				// Layers pane - transform to local coordinates
-				// X: relative to pane border (will be adjusted by child for content area)
-				// Y: relative to content area (accounting for ContentVisualOffset)
-				localX := x
-				localY := y - l.ContentStartY
-				localMsg := common.LocalMouseMsg{
-					MouseMsg: msg,
-					LocalX:   localX,
-					LocalY:   localY,
-				}
-				newPane, cmd := m.layersPane.Update(localMsg)
-				m.layersPane = newPane.(layers.Pane)
-				cmds = append(cmds, cmd)
-				if m.activePane != PaneLayer {
-					m.activePane = PaneLayer
-					m.sendFocusStates()
-				}
-			} else if y >= layersEndY && y < detailsEndY {
-				// Details pane (read-only, no mouse handling)
-				if m.activePane != PaneDetails {
-					m.activePane = PaneDetails
-					m.sendFocusStates()
-				}
-			} else {
-				// Image pane - transform to local coordinates
-				localX := x
-				localY := y - detailsEndY
-				localMsg := common.LocalMouseMsg{
-					MouseMsg: msg,
-					LocalX:   localX,
-					LocalY:   localY,
-				}
-				newPane, cmd := m.imagePane.Update(localMsg)
-				m.imagePane = newPane.(imagepane.Pane)
-				cmds = append(cmds, cmd)
-				if m.activePane != PaneImage {
-					m.activePane = PaneImage
-					m.sendFocusStates()
-				}
-			}
-		} else if inRightCol {
-			// Tree pane - transform to local coordinates
-			localX := x - l.LeftWidth
-			localY := y - l.ContentStartY
-			localMsg := common.LocalMouseMsg{
-				MouseMsg: msg,
-				LocalX:   localX,
-				LocalY:   localY,
-			}
-			newPane, cmd := m.treePane.Update(localMsg)
-			m.treePane = newPane.(filetreepane.Pane)
-			cmds = append(cmds, cmd)
-			if m.activePane != PaneTree {
-				m.activePane = PaneTree
+			// Change focus if needed
+			if m.activePane != targetPane {
+				m.activePane = targetPane
 				m.sendFocusStates()
+			}
+
+			// Skip Details pane (read-only, no mouse handling)
+			if targetPane != PaneDetails {
+				// Create local mouse message with transformed coordinates
+				localMsg := common.LocalMouseMsg{
+					MouseMsg: msg,
+					LocalX:   localX,
+					LocalY:   localY,
+				}
+				// POLYMORPHISM: Update through interface
+				newPane, cmd := m.panes[targetPane].Update(localMsg)
+				m.panes[targetPane] = newPane
+				cmds = append(cmds, cmd)
 			}
 		}
 
@@ -413,24 +376,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Broadcast to all panes - they will extract what they need
+		// POLYMORPHISM: Same code for all panes, no type assertions needed!
 		var layoutCmds []tea.Cmd
-
-		newLayers, cmd := m.layersPane.Update(layoutMsg)
-		m.layersPane = newLayers.(layers.Pane)
-		layoutCmds = append(layoutCmds, cmd)
-
-		newDetails, cmd := m.detailsPane.Update(layoutMsg)
-		m.detailsPane = newDetails.(details.Pane)
-		layoutCmds = append(layoutCmds, cmd)
-
-		newImage, cmd := m.imagePane.Update(layoutMsg)
-		m.imagePane = newImage.(imagepane.Pane)
-		layoutCmds = append(layoutCmds, cmd)
-
-		newTree, cmd := m.treePane.Update(layoutMsg)
-		m.treePane = newTree.(filetreepane.Pane)
-		layoutCmds = append(layoutCmds, cmd)
-
+		for paneType, pane := range m.panes {
+			updatedPane, cmd := pane.Update(layoutMsg)
+			m.panes[paneType] = updatedPane
+			layoutCmds = append(layoutCmds, cmd)
+		}
 		cmds = append(cmds, layoutCmds...)
 	}
 
@@ -455,37 +407,27 @@ func (m *Model) togglePane() {
 func (m *Model) sendFocusStates() {
 	// Send FocusStateMsg to all panes based on current active pane
 	// Parent is the Single Source of Truth - children receive focus state via messages
-	switch m.activePane {
-	case PaneLayer:
-		newPane, _ := m.layersPane.Update(layers.FocusStateMsg{Focused: true})
-		m.layersPane = newPane.(layers.Pane)
-	case PaneDetails:
-		newPane, _ := m.detailsPane.Update(details.FocusStateMsg{Focused: true})
-		m.detailsPane = newPane.(details.Pane)
-	case PaneImage:
-		newPane, _ := m.imagePane.Update(imagepane.FocusStateMsg{Focused: true})
-		m.imagePane = newPane.(imagepane.Pane)
-	case PaneTree:
-		newPane, _ := m.treePane.Update(filetreepane.FocusStateMsg{Focused: true})
-		m.treePane = newPane.(filetreepane.Pane)
-	}
 
-	// Blur all other panes
-	if m.activePane != PaneLayer {
-		newPane, _ := m.layersPane.Update(layers.FocusStateMsg{Focused: false})
-		m.layersPane = newPane.(layers.Pane)
-	}
-	if m.activePane != PaneDetails {
-		newPane, _ := m.detailsPane.Update(details.FocusStateMsg{Focused: false})
-		m.detailsPane = newPane.(details.Pane)
-	}
-	if m.activePane != PaneImage {
-		newPane, _ := m.imagePane.Update(imagepane.FocusStateMsg{Focused: false})
-		m.imagePane = newPane.(imagepane.Pane)
-	}
-	if m.activePane != PaneTree {
-		newPane, _ := m.treePane.Update(filetreepane.FocusStateMsg{Focused: false})
-		m.treePane = newPane.(filetreepane.Pane)
+	// POLYMORPHISM: Iterate over all panes and update their focus state
+	for paneType, pane := range m.panes {
+		focused := (paneType == m.activePane)
+
+		// Create the appropriate FocusStateMsg for this pane type
+		var focusMsg tea.Msg
+		switch paneType {
+		case PaneLayer:
+			focusMsg = layers.FocusStateMsg{Focused: focused}
+		case PaneDetails:
+			focusMsg = details.FocusStateMsg{Focused: focused}
+		case PaneImage:
+			focusMsg = imagepane.FocusStateMsg{Focused: focused}
+		case PaneTree:
+			focusMsg = filetreepane.FocusStateMsg{Focused: focused}
+		}
+
+		// POLYMORPHISM: Update through interface, no type assertion
+		updatedPane, _ := pane.Update(focusMsg)
+		m.panes[paneType] = updatedPane
 	}
 }
 
@@ -502,7 +444,10 @@ func (m *Model) updateTreeForCurrentLayer() {
 	_ = m.treeVM.Update(nil, m.layout.RightWidth, m.layout.TreeHeight)
 
 	// Update tree pane with new tree data
-	m.treePane.SetTreeVM(m.treeVM)
+	// NOTE: SetTreeVM is tree-specific, so we need a type assertion here
+	if treePane, ok := m.panes[PaneTree].(*filetreepane.Pane); ok {
+		treePane.SetTreeVM(m.treeVM)
+	}
 }
 
 // View implements tea.Model (PURE FUNCTION - no side effects!)
@@ -520,12 +465,13 @@ func (m Model) View() string {
 	statusBar := m.help.View(m.keys)
 
 	// Render panes directly using their View() methods
+	// POLYMORPHISM: Access panes through interface from map
 	leftColumn := lipgloss.JoinVertical(lipgloss.Left,
-		m.layersPane.View(),
-		m.detailsPane.View(),
-		m.imagePane.View(),
+		m.panes[PaneLayer].View(),
+		m.panes[PaneDetails].View(),
+		m.panes[PaneImage].View(),
 	)
-	treePane := m.treePane.View()
+	treePane := m.panes[PaneTree].View()
 
 	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, leftColumn, treePane)
 
@@ -547,5 +493,29 @@ func (m Model) View() string {
 	}
 
 	return base
+}
+
+// applyFilter applies a filter pattern to the file tree
+func (m *Model) applyFilter(pattern string) {
+	if m.treeVM == nil {
+		return
+	}
+
+	// Compile the regex pattern
+	var filterRegex *regexp.Regexp
+	if pattern != "" {
+		filterRegex = regexp.MustCompile(pattern)
+	}
+	m.filterRegex = filterRegex
+
+	// Update the tree viewmodel with the filter
+	// This will update ViewTree based on the filter
+	_ = m.treeVM.Update(filterRegex, m.layout.RightWidth, m.layout.TreeHeight)
+
+	// Update tree pane with filtered tree data
+	// NOTE: SetTreeVM is tree-specific, so we need a type assertion here
+	if treePane, ok := m.panes[PaneTree].(*filetreepane.Pane); ok {
+		treePane.SetTreeVM(m.treeVM)
+	}
 }
 

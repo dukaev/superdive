@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/domain"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
 )
 
-// Re-export FileStats from utils package
-type FileStats = utils.FileStats
+// Re-export FileStats from domain package
+type FileStats = domain.FileStats
 
 // StatsPartType represents which part of the stats this is
 type StatsPartType int

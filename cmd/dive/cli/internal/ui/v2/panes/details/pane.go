@@ -35,8 +35,8 @@ func New() Pane {
 	}
 }
 
-// SetSize updates the pane dimensions
-func (m *Pane) SetSize(width, height int) {
+// Resize updates the pane dimensions
+func (m *Pane) Resize(width, height int) {
 	m.width = width
 	m.height = height
 }
@@ -47,17 +47,22 @@ func (m *Pane) SetLayer(layer *image.Layer) {
 }
 
 // Init initializes the pane
-func (m Pane) Init() tea.Cmd {
+func (m *Pane) Init() tea.Cmd {
 	return nil
 }
 
+// SetFocused sets the focus state of the pane
+func (m *Pane) SetFocused(focused bool) {
+	m.focused = focused
+}
+
 // Update handles messages
-func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 	switch msg := msg.(type) {
 	case common.LayoutMsg:
-		// Parent sends layout info instead of calling SetSize()
+		// Parent sends layout info instead of calling Resize()
 		// Extract what we need from the message
-		m.SetSize(msg.LeftWidth, msg.DetailsHeight)
+		m.Resize(msg.LeftWidth, msg.DetailsHeight)
 		return m, nil
 
 	case common.LayerSelectedMsg:
@@ -66,8 +71,8 @@ func (m Pane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case FocusStateMsg:
-		// Parent controls focus state - this is the Single Source of Truth pattern
-		m.focused = msg.Focused
+		// Parent controls focus state - use SetFocused method
+		m.SetFocused(msg.Focused)
 		return m, nil
 	}
 	// Details pane doesn't handle any other messages - it's read-only

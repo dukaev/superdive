@@ -7,6 +7,11 @@ import (
 	v2styles "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 )
 
+// FilterAppliedMsg is sent when the user applies a filter
+type FilterAppliedMsg struct {
+	Pattern string
+}
+
 // FilterModel manages the filter input modal
 type FilterModel struct {
 	textinput.Model
@@ -57,8 +62,12 @@ func (m FilterModel) Update(msg tea.Msg) (FilterModel, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "enter":
-			// TODO: Apply filter
-			return m, nil
+			// Apply filter and hide
+			pattern := m.Value()
+			m.Hide()
+			return m, func() tea.Msg {
+				return FilterAppliedMsg{Pattern: pattern}
+			}
 		case "esc":
 			m.Hide()
 			return m, nil

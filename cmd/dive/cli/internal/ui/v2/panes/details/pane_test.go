@@ -11,7 +11,7 @@ import (
 
 func TestPane_View_NoLayer(t *testing.T) {
 	pane := New()
-	pane.SetSize(50, 10)
+	pane.Resize(50, 10)
 
 	view := pane.View()
 	snaps.MatchSnapshot(t, view)
@@ -30,7 +30,7 @@ func TestPane_View_WithLayer(t *testing.T) {
 
 	pane := New()
 	pane.SetLayer(layer)
-	pane.SetSize(80, 15)
+	pane.Resize(80, 15)
 
 	view := pane.View()
 	snaps.MatchSnapshot(t, view)
@@ -49,12 +49,12 @@ func TestPane_View_Focused(t *testing.T) {
 
 	pane := New()
 	pane.SetLayer(layer)
-	pane.SetSize(80, 15)
+	pane.Resize(80, 15)
 
 	// Send focus message
 	updatedPane, _ := pane.Update(FocusStateMsg{Focused: true})
 
-	view := updatedPane.(Pane).View()
+	view := updatedPane.(*Pane).View()
 	snaps.MatchSnapshot(t, view)
 }
 
@@ -71,7 +71,7 @@ func TestPane_View_SmallWidth(t *testing.T) {
 
 	pane := New()
 	pane.SetLayer(layer)
-	pane.SetSize(30, 15) // Very narrow width
+	pane.Resize(30, 15) // Very narrow width
 
 	view := pane.View()
 	snaps.MatchSnapshot(t, view)
@@ -90,7 +90,7 @@ func TestPane_View_SmallHeight(t *testing.T) {
 
 	pane := New()
 	pane.SetLayer(layer)
-	pane.SetSize(80, 6) // Very short height
+	pane.Resize(80, 6) // Very short height
 
 	view := pane.View()
 	snaps.MatchSnapshot(t, view)
@@ -109,7 +109,7 @@ func TestPane_View_LargeSize(t *testing.T) {
 
 	pane := New()
 	pane.SetLayer(layer)
-	pane.SetSize(120, 30) // Large dimensions
+	pane.Resize(120, 30) // Large dimensions
 
 	view := pane.View()
 	snaps.MatchSnapshot(t, view)
@@ -134,7 +134,7 @@ func TestPane_View_LongCommand(t *testing.T) {
 
 	pane := New()
 	pane.SetLayer(targetLayer)
-	pane.SetSize(80, 15)
+	pane.Resize(80, 15)
 
 	view := pane.View()
 	snaps.MatchSnapshot(t, view)
@@ -159,6 +159,6 @@ func TestPane_Update_WithLayoutMsg(t *testing.T) {
 	updatedPane, _ := pane.Update(layoutMsg)
 
 	// Verify size was updated
-	view := updatedPane.(Pane).View()
+	view := updatedPane.(*Pane).View()
 	snaps.MatchSnapshot(t, view)
 }

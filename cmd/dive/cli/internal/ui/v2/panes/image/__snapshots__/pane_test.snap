@@ -30,7 +30,7 @@
 │Total Image size: 1.2 MB                                                      │
 │Potential wasted space: 31.3 KB                                               │
 │Image efficiency score: 98%                                                   │
-│Files > 0 KB total: 0                                                         │
+│Files > 0 KB total: 5                                                         │
 │                                                                              │
 │Count Total Space  Path                                                       │
 │2     6.3 KB       /root/example/somefile3.txt                                │
@@ -53,7 +53,7 @@
 │Total Image size: 1.2 MB                                                      │
 │Potential wasted space: 31.3 KB                                               │
 │Image efficiency score: 98%                                                   │
-│Files > 0 KB total: 0                                                         │
+│Files > 0 KB total: 5                                                         │
 │                                                                              │
 │Count Total Space  Path                                                       │
 │2     6.3 KB       /root/example/somefile3.txt                                │
@@ -76,7 +76,7 @@
 │Total Image size: 1.2 MB              │
 │Potential wasted space: 31.3 KB       │
 │Image efficiency score: 98%           │
-│Files > 0 KB total: 0                 │
+│Files > 0 KB total: 5                 │
 │                                      │
 │Count Total Space  Path               │
 │2     6.3 KB       /root/example/so...│
@@ -110,7 +110,7 @@
 │Total Image size: 1.2 MB                                                                                              │
 │Potential wasted space: 31.3 KB                                                                                       │
 │Image efficiency score: 98%                                                                                           │
-│Files > 0 KB total: 0                                                                                                 │
+│Files > 0 KB total: 5                                                                                                 │
 │                                                                                                                      │
 │Count Total Space  Path                                                                                               │
 │2     6.3 KB       /root/example/somefile3.txt                                                                        │
@@ -153,7 +153,7 @@
 │Total Image size: 1.2 MB                        │
 │Potential wasted space: 31.3 KB                 │
 │Image efficiency score: 98%                     │
-│Files > 0 KB total: 0                           │
+│Files > 0 KB total: 5                           │
 │                                                │
 │Count Total Space  Path                         │
 │2     6.3 KB       /root/example/somefile3.txt  │
