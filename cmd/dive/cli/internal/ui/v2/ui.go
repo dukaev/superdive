@@ -8,6 +8,7 @@ import (
 	"github.com/anchore/clio"
 	"github.com/anchore/go-logger/adapter/discard"
 	"github.com/charmbracelet/bubbletea"
+	"github.com/lrstanley/bubblezone"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	v1 "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1"
@@ -117,6 +118,10 @@ func (n *V2UI) Handle(e partybus.Event) error {
 }
 
 func (n *V2UI) runApp(ctx context.Context, analysis image.Analysis, content image.ContentReader) error {
+	// Initialize global zone manager for mouse hit testing
+	// This must be called once before starting the bubbletea program
+	zone.NewGlobal()
+
 	// Create bubbletea program with initial model
 	model := app.NewModel(analysis, content, n.cfg, ctx)
 

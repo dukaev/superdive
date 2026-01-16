@@ -30,6 +30,11 @@ type RefreshTreeContentMsg struct {
 	LayerIndex int
 }
 
+// UpdateViewModelMsg is sent by parent when the tree viewmodel has been updated
+type UpdateViewModelMsg struct {
+	TreeVM *viewmodel.FileTreeViewModel
+}
+
 // Pane manages the file tree using bubbles/list for automatic scrolling and navigation
 type Pane struct {
 	focused bool
@@ -205,6 +210,11 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 
 	case NodeToggledMsg, RefreshTreeContentMsg:
 		p.rebuildListItems()
+
+	case UpdateViewModelMsg:
+		// Parent sends updated viewmodel (e.g., after layer change or filter)
+		p.SetTreeVM(msg.TreeVM)
+		return p, nil
 	}
 
 	// Delegate all other messages to list (handles navigation, scrolling, mouse)

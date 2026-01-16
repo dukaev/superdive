@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/help"
+	"github.com/lrstanley/bubblezone"
 	"github.com/charmbracelet/lipgloss"
 	v1 "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1/viewmodel"
@@ -51,24 +52,6 @@ func (p Pane) String() string {
 		return "Tree"
 	}
 	return "Unknown"
-}
-
-// mapLayoutPaneToAppPane safely converts layout.PaneID to app.Pane
-// This prevents bugs if the order of constants changes in either package
-func mapLayoutPaneToAppPane(id layout.PaneID) Pane {
-	switch id {
-	case layout.PaneIDLayer:
-		return PaneLayer
-	case layout.PaneIDDetails:
-		return PaneDetails
-	case layout.PaneIDImage:
-		return PaneImage
-	case layout.PaneIDTree:
-		return PaneTree
-	default:
-		// Fallback to Layers if unknown
-		return PaneLayer
-	}
 }
 
 // Model is the bubbletea Model for V2UI
@@ -317,44 +300,51 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case filetreepane.RefreshTreeContentMsg:
 		// Request to refresh tree content
-		// NOTE: SetTreeVM is tree-specific, so we need a type assertion here
-		// This is acceptable since it's a one-time operation for tree-specific functionality
-		if treePane, ok := m.panes[PaneTree].(*filetreepane.Pane); ok {
-			treePane.SetTreeVM(m.treeVM)
-		}
+		// POLYMORPHISM: Send message through interface, no type assertion
+		newPane, _ := m.panes[PaneTree].Update(filetreepane.UpdateViewModelMsg{TreeVM: m.treeVM})
+		m.panes[PaneTree] = newPane
 
 	case layers.ShowLayerDetailMsg:
 		// Show layer detail modal
 		m.layerDetailModal.Show(msg.Layer)
 
 	case tea.MouseMsg:
-		// Layout engine determines which pane was clicked and provides local coordinates
-		// This encapsulates hit testing logic in the layout layer
-		paneID, localX, localY, found := m.layout.GetPaneAt(msg.X, msg.Y, m.width)
+		// BUBBLEZONE: Check which pane was clicked using zone hit testing
+		// This is more robust than manual coordinate calculations
+		for paneID, pane := range m.panes {
+			id := paneID.String() // "Layers", "Details", "Image", "Tree"
 
-		if found {
-			// SAFETY: Use explicit mapping instead of type conversion
-			// This prevents bugs if constant order changes in either package
-			targetPane := mapLayoutPaneToAppPane(paneID)
-
-			// Change focus if needed
-			if m.activePane != targetPane {
-				m.activePane = targetPane
-				m.sendFocusStates()
-			}
-
-			// Skip Details pane (read-only, no mouse handling)
-			if targetPane != PaneDetails {
-				// Create local mouse message with transformed coordinates
-				localMsg := common.LocalMouseMsg{
-					MouseMsg: msg,
-					LocalX:   localX,
-					LocalY:   localY,
+			if zone.Get(id).InBounds(msg) {
+				// Change focus if needed
+				if m.activePane != paneID {
+					m.activePane = paneID
+					m.sendFocusStates()
 				}
-				// POLYMORPHISM: Update through interface
-				newPane, cmd := m.panes[targetPane].Update(localMsg)
-				m.panes[targetPane] = newPane
-				cmds = append(cmds, cmd)
+
+				// Skip Details pane (read-only, no mouse handling)
+				if paneID != PaneDetails {
+					// Get the zone to calculate local coordinates
+					z := zone.Get(id)
+
+					// Calculate local coordinates relative to the pane
+					// Pos() returns the x, y coordinates relative to the zone's origin
+					localX, localY := z.Pos(msg)
+
+					// Create local mouse message with transformed coordinates
+					localMsg := common.LocalMouseMsg{
+						MouseMsg: msg,
+						LocalX:   localX,
+						LocalY:   localY,
+					}
+
+					// POLYMORPHISM: Update through interface
+					newPane, cmd := pane.Update(localMsg)
+					m.panes[paneID] = newPane
+					cmds = append(cmds, cmd)
+				}
+
+				// Found the clicked pane, stop checking
+				break
 			}
 		}
 
@@ -444,10 +434,9 @@ func (m *Model) updateTreeForCurrentLayer() {
 	_ = m.treeVM.Update(nil, m.layout.RightWidth, m.layout.TreeHeight)
 
 	// Update tree pane with new tree data
-	// NOTE: SetTreeVM is tree-specific, so we need a type assertion here
-	if treePane, ok := m.panes[PaneTree].(*filetreepane.Pane); ok {
-		treePane.SetTreeVM(m.treeVM)
-	}
+	// POLYMORPHISM: Send message through interface, no type assertion
+	newPane, _ := m.panes[PaneTree].Update(filetreepane.UpdateViewModelMsg{TreeVM: m.treeVM})
+	m.panes[PaneTree] = newPane
 }
 
 // View implements tea.Model (PURE FUNCTION - no side effects!)
@@ -466,12 +455,13 @@ func (m Model) View() string {
 
 	// Render panes directly using their View() methods
 	// POLYMORPHISM: Access panes through interface from map
+	// BUBBLEZONE: Mark each pane with a unique ID for mouse hit testing
 	leftColumn := lipgloss.JoinVertical(lipgloss.Left,
-		m.panes[PaneLayer].View(),
-		m.panes[PaneDetails].View(),
-		m.panes[PaneImage].View(),
+		zone.Mark(PaneLayer.String(), m.panes[PaneLayer].View()),
+		zone.Mark(PaneDetails.String(), m.panes[PaneDetails].View()),
+		zone.Mark(PaneImage.String(), m.panes[PaneImage].View()),
 	)
-	treePane := m.panes[PaneTree].View()
+	treePane := zone.Mark(PaneTree.String(), m.panes[PaneTree].View())
 
 	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, leftColumn, treePane)
 
@@ -480,19 +470,26 @@ func (m Model) View() string {
 		statusBar,
 	)
 
+	// BUGFIX: Always call zone.Scan(), even when showing modals
+	// Early returns before zone.Scan() caused click zones to break
+	// after closing modals (zone map wasn't being updated).
+	//
+	// Solution: Build the final view in a variable, then always scan it.
+	finalView := base
+
 	// Overlay layer detail modal if visible
 	if m.layerDetailModal.IsVisible() {
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
-			m.layerDetailModal.View(m.width, m.height))
+		modalView := m.layerDetailModal.View(m.width, m.height)
+		finalView = lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modalView)
+	} else if m.filter.IsVisible() {
+		// Overlay filter modal if visible
+		modalView := m.filter.View(m.width, m.height)
+		finalView = lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modalView)
 	}
 
-	// Overlay filter modal if visible
-	if m.filter.IsVisible() {
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
-			m.filter.View(m.width, m.height))
-	}
-
-	return base
+	// BUBBLEZONE: Scan the entire output to register zones for hit testing
+	// CRITICAL: This must be called ONCE on the FINAL rendered string, regardless of modals
+	return zone.Scan(finalView)
 }
 
 // applyFilter applies a filter pattern to the file tree
@@ -513,9 +510,8 @@ func (m *Model) applyFilter(pattern string) {
 	_ = m.treeVM.Update(filterRegex, m.layout.RightWidth, m.layout.TreeHeight)
 
 	// Update tree pane with filtered tree data
-	// NOTE: SetTreeVM is tree-specific, so we need a type assertion here
-	if treePane, ok := m.panes[PaneTree].(*filetreepane.Pane); ok {
-		treePane.SetTreeVM(m.treeVM)
-	}
+	// POLYMORPHISM: Send message through interface, no type assertion
+	newPane, _ := m.panes[PaneTree].Update(filetreepane.UpdateViewModelMsg{TreeVM: m.treeVM})
+	m.panes[PaneTree] = newPane
 }
 

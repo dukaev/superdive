@@ -1,6 +1,9 @@
 package common
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 // Pane defines the interface that all UI panes must implement.
 // This interface enables polymorphic interaction between the main app model
@@ -24,4 +27,9 @@ type Pane interface {
 	// When focused, the pane handles keyboard input.
 	// When unfocused, the pane ignores keyboard input.
 	SetFocused(focused bool)
+
+	// ShortHelp returns key bindings specific to this pane.
+	// These are displayed in the status bar when the pane is focused.
+	// Returns nil or empty slice if the pane has no specific keys.
+	ShortHelp() []key.Binding
 }
