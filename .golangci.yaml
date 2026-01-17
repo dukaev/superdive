@@ -1,74 +1,68 @@
-# TODO: enable this when we have coverage on docstring comments
-#issues:
-#  # The list of ids of default excludes to include or disable.
-#  include:
-#    - EXC0002 # disable excluding of issues about comments from golint
+linters:
+  disable-all: true
+  enable:
+    # --- 1. Базовые (находят реальные ошибки и мертвый код) ---
+    - govet       # Стандартный анализ Go
+    - errcheck    # Проверка обработки ошибок
+    - staticcheck # Огромный набор проверок, стандарт индустрии
+    - gosimple    # Предлагает упрощение кода
+    - unused      # Находит неиспользуемые переменные/функции (замена varcheck/deadcode)
+    - ineffassign # Находит бесполезные присваивания
+    - typecheck   # Проверка типов (как компилятор)
+    - bodyclose   # Проверка закрытия body в HTTP ответах
+
+    # --- 2. Форматирование (легко исправить автоматом) ---
+    - gofmt
+    - goimports
+    - misspell    # Опечатки в словах
+
+    # --- 3. Сложность (настройки ниже расслаблены для старта) ---
+    - gocyclo     # Цикломатическая сложность
+    - gocognit    # Когнитивная сложность (понятность кода)
+    - funlen      # Длина функций
+    - nestif      # Вложенность if
+    - goconst     # Повторяющиеся строки
 
 linters-settings:
+  # Настройки сложности взяты "помягче" (из второго файла),
+  # чтобы не блокировать работу сразу.
+
   funlen:
-    # Checks the number of lines in a function.
-    # If lower than 0, disable the check.
-    # Default: 60
-    # TODO: drop this down over time...
+    # Лимит строк в функции.
+    # В первом файле было 80, во втором 110. Берем 110 для мягкого старта.
     lines: 110
-    # Checks the number of statements in a function.
-    # If lower than 0, disable the check.
-    # Default: 40
+    # Лимит инструкций (операций).
     statements: 60
 
-# TODO: use the default linters for now, but include these over time
-#linters:
-#  # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
-#  disable-all: true
-#  enable:
-#    - asciicheck
-#    - bodyclose
-#    - depguard
-#    - dogsled
-#    - dupl
-#    - errcheck
-#    - exportloopref
-#    - funlen
-#    - gocognit
-#    - goconst
-#    - gocritic
-#    - gocyclo
-#    - gofmt
-#    - goimports
-#    - goprintffuncname
-#    - gosec
-#    - gosimple
-#    - govet
-#    - ineffassign
-#    - misspell
-#    - nakedret
-#    - nolintlint
-#    - revive
-#    - staticcheck
-#    - stylecheck
-#    - typecheck
-#    - unconvert
-#    - unparam
-#    - unused
-#    - whitespace
+  gocyclo:
+    # Стандарт 10-15. Вы ставили 35. Оставляем 35, чтобы не переписывать полпроекта.
+    min-complexity: 35
 
-# do not enable...
-#    - gochecknoglobals
-#    - gochecknoinits    # this is too aggressive
-#    - godot
-#    - godox
-#    - goerr113
-#    - golint       # deprecated
-#    - gomnd        # this is too aggressive
-#    - interfacer   # this is a good idea, but is no longer supported and is prone to false positives
-#    - lll          # without a way to specify per-line exception cases, this is not usable
-#    - maligned     # this is an excellent linter, but tricky to optimize and we are not sensitive to memory layout optimizations
-#    - nestif
-#    - prealloc     # following this rule isn't consistently a good idea, as it sometimes forces unnecessary allocations that result in less idiomatic code
-#    - scopelint    # deprecated
-#    - testpackage
-#    - wsl          # this doesn't have an auto-fixer yet and is pretty noisy (https://github.com/bombsimon/wsl/issues/90)
-#    - varcheck     # deprecated (since v1.49.0) due to: The owner seems to have abandoned the linter.  Replaced by unused.
-#    - deadcode     # deprecated (since v1.49.0) due to: The owner seems to have abandoned the linter.  Replaced by unused.
-#    - structcheck  # deprecated (since v1.49.0) due to: The owner seems to have abandoned the linter.  Replaced by unused.
-#    - rowserrcheck # we're not using sql.Rows at all in the codebase
+  gocognit:
+    # Чуть строже, чем cyclo, так как ловит запутанную логику.
+    min-complexity: 30 # Увеличил с 20 до 30 для старта.
+
+  nestif:
+    # Максимальная вложенность if.
+    min-complexity: 5 # Увеличил с 4 до 5 (чуть мягче).
+
+  goconst:
+    min-len: 3          # Минимальная длина строки для проверки
+    min-occurrences: 3  # Сколько раз строка должна повториться, чтобы ругаться
+
+issues:
+  # Исключаем проверки для тестов и сгенерированного кода
+  exclude-dirs:
+    - vendor
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - funlen
+        - goconst
+
+# Лимиты выполнения, чтобы линтер не висел вечно на большом проекте
+run:
+  timeout: 5m

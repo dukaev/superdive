@@ -236,10 +236,9 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// recalculateLayout uses the layout engine to calculate pane dimensions
+// recalculateLayout calculates pane dimensions using the layout package
 func (m *Model) recalculateLayout() {
-	engine := layout.NewEngine()
-	result := engine.Calculate(m.width, m.height)
+	result := layout.Calculate(m.width, m.height)
 
 	m.layout.ContentStartY = result.ContentStartY
 	m.layout.LeftWidth = result.LeftWidth

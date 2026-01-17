@@ -22,18 +22,9 @@ type Result struct {
 	TreeHeight    int
 }
 
-// Engine calculates and caches layout dimensions
-type Engine struct {
-	cache Result
-}
-
-// NewEngine creates a new layout engine
-func NewEngine() *Engine {
-	return &Engine{}
-}
-
 // Calculate computes pane dimensions based on terminal size
-func (e *Engine) Calculate(width, height int) Result {
+// This is a pure function - no state, no caching, just simple math
+func Calculate(width, height int) Result {
 	statusBarHeight := 1
 
 	result := Result{}
@@ -78,13 +69,7 @@ func (e *Engine) Calculate(width, height int) Result {
 
 	result.TreeHeight = availableHeight
 
-	e.cache = result
 	return result
-}
-
-// GetCached returns the last calculated layout
-func (e *Engine) GetCached() Result {
-	return e.cache
 }
 
 // GetViewportDimensions returns the width and height for a viewport

@@ -45,3 +45,7 @@ ci-test-windows-run:
 
 help: $(TASK)
 	@$(TASK) -l
+
+
+lint-ui:
+	golangci-lint run cmd/dive/cli/internal/ui/v2/...
