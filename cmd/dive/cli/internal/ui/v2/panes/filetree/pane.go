@@ -226,7 +226,15 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 					if targetIndex >= 0 && targetIndex < len(p.nodes) {
 						p.cursor = targetIndex
 						p.ensureCursorVisible()
-						// Return command to notify system of selection change
+
+						// Check if clicked node is a directory
+						node := p.nodes[p.cursor].Node
+						if node.Data.FileInfo.IsDir() {
+							// Toggle collapse/expand on directory click
+							return p, p.toggleCollapse()
+						}
+
+						// For files, just notify of selection change
 						return p, func() tea.Msg { return TreeSelectionChangedMsg{NodeIndex: p.cursor} }
 					}
 				}

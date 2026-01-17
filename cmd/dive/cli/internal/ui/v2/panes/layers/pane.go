@@ -39,7 +39,29 @@ const (
 	ColPadding     = 1
 	// Calculation: Prefix(5) + ID(4) + Pad(1) + Size(9) + Pad(1)
 	StatsStartOffset = ColWidthPrefix + ColWidthID + ColPadding + ColWidthSize + ColPadding
+	// Minimum width for columns (used for dynamic hiding)
+	MinWidthPrefix = ColWidthPrefix
+	MinWidthID     = ColWidthID
+	MinWidthSize   = ColWidthSize
+	MinWidthDigest = 6 // Current digest width
+	MinWidthStats  = 3 // Minimum: "0 0 0"
 )
+
+// getColumnVisibility determines which columns should be shown based on width
+// Priority for hiding (first to hide): Command → Digest → Stats
+// Priority for keeping (never hide): ID → Size → Prefix
+func getColumnVisibility(width int) (showCommand, showDigest, showStats bool) {
+	// Calculate minimum space needed for each level
+	minWithoutCommand := MinWidthPrefix + MinWidthID + ColPadding + MinWidthSize + ColPadding + MinWidthDigest + ColPadding + MinWidthStats + ColPadding
+	minWithoutDigest := minWithoutCommand - MinWidthDigest - ColPadding
+	minWithoutStats := minWithoutDigest - MinWidthStats - ColPadding
+
+	showCommand = width >= minWithoutCommand
+	showDigest = width >= minWithoutDigest
+	showStats = width >= minWithoutStats
+
+	return showCommand, showDigest, showStats
+}
 
 // Pane manages the layers list
 type Pane struct {
@@ -363,6 +385,9 @@ func (m *Pane) updateContent() {
 func (m *Pane) generateContent() string {
 	width := m.width - 2 // Viewport width (without panel borders)
 
+	// Determine column visibility based on width
+	showCommand, showDigest, showStats := getColumnVisibility(width)
+
 	var fullContent strings.Builder
 
 	for i, layer := range m.layerVM.Layers {
@@ -387,7 +412,7 @@ func (m *Pane) generateContent() string {
 
 		// Update and get stats from component
 		statsStr := ""
-		if i < len(m.statsRows) && i < len(m.statsCache) {
+		if showStats && i < len(m.statsRows) && i < len(m.statsCache) {
 			// PERFOMANCE: Use cached stats instead of recalculating on every render
 			// This avoids expensive tree traversal (CalculateFileStats) during scrolling
 			stats := m.statsCache[i]
@@ -405,19 +430,10 @@ func (m *Pane) generateContent() string {
 			}
 		}
 
-		// Clean command from newlines
-		rawCmd := strings.ReplaceAll(layer.Command, "\n", " ")
-		rawCmd = strings.TrimSpace(rawCmd)
-		// Truncate command to 20 chars
-		cmd := rawCmd
-		if len(cmd) > 20 {
-			cmd = cmd[:20]
-		}
-
 		// Format digest (short version: 6 chars)
 		digest := ""
-		const digestWidth = 6
-		if layer.Digest != "" {
+		if showDigest && layer.Digest != "" {
+			const digestWidth = 6
 			// Remove "sha256:" prefix if present and take first 6 chars
 			shortDigest := strings.TrimPrefix(layer.Digest, "sha256:")
 			if len(shortDigest) > digestWidth {
@@ -432,19 +448,23 @@ func (m *Pane) generateContent() string {
 			}
 		}
 
-		// Build the line using strict column widths
-		// %-*s  = Prefix (left align, width 7) "[1/n] "
-		// %-*s  = ID (left align, width 12)
-		// " "   = Padding
-		// %*s   = Size (right align, width 9)
-		// " "   = Padding
-		// %s    = Stats
-		// " "   = Padding
-		// %s    = Digest (gray color)
-		// " "   = Padding
-		// %s    = Command
+		// Format command
+		cmd := ""
+		if showCommand {
+			// Clean command from newlines
+			rawCmd := strings.ReplaceAll(layer.Command, "\n", " ")
+			rawCmd = strings.TrimSpace(rawCmd)
+			// Truncate command to 20 chars
+			cmd = rawCmd
+			if len(cmd) > 20 {
+				cmd = cmd[:20]
+			}
+		}
+
+		// Build the line dynamically based on column visibility
 		var text string
-		if digest != "" {
+		if showDigest && showCommand {
+			// All columns: Prefix ID Size Stats Digest Command
 			text = fmt.Sprintf("%-*s%-*s %*s %s %s %s",
 				ColWidthPrefix, prefix,
 				ColWidthID, id,
@@ -453,13 +473,31 @@ func (m *Pane) generateContent() string {
 				digest,
 				cmd,
 			)
-		} else {
+		} else if showDigest {
+			// Without Command: Prefix ID Size Stats Digest
+			text = fmt.Sprintf("%-*s%-*s %*s %s %s",
+				ColWidthPrefix, prefix,
+				ColWidthID, id,
+				ColWidthSize, size,
+				statsStr,
+				digest,
+			)
+		} else if showCommand {
+			// Without Digest: Prefix ID Size Stats Command
 			text = fmt.Sprintf("%-*s%-*s %*s %s %s",
 				ColWidthPrefix, prefix,
 				ColWidthID, id,
 				ColWidthSize, size,
 				statsStr,
 				cmd,
+			)
+		} else {
+			// Only Stats: Prefix ID Size Stats
+			text = fmt.Sprintf("%-*s%-*s %*s %s",
+				ColWidthPrefix, prefix,
+				ColWidthID, id,
+				ColWidthSize, size,
+				statsStr,
 			)
 		}
 
