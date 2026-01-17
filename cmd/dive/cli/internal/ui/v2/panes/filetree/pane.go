@@ -4,10 +4,10 @@ import (
 	"regexp"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1/viewmodel"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
@@ -68,9 +68,9 @@ type Pane struct {
 
 	// Data
 	nodes       []VisibleNode
-	cursor      int // Current selected index in nodes
-	scrollOff   int // Number of lines to keep visible above/below cursor (scrolloff)
-	flatMode    bool // true = Flat View, false = Tree View
+	cursor      int            // Current selected index in nodes
+	scrollOff   int            // Number of lines to keep visible above/below cursor (scrolloff)
+	flatMode    bool           // true = Flat View, false = Tree View
 	filterRegex *regexp.Regexp // Active filter regex for highlighting and clean search
 
 	// Diff type filter states (default: show all)
@@ -85,18 +85,18 @@ func New(treeVM *viewmodel.FileTreeViewModel) Pane {
 	v := viewport.New(80, 20)
 
 	p := Pane{
-		treeVM:          treeVM,
-		focused:         false,
-		width:           80,
-		height:          20,
-		viewport:        v,
-		nodes:           []VisibleNode{},
-		cursor:          0,
-		scrollOff:       3, // Keep 3 lines visible above/below cursor (like vim scrolloff)
-		showAdded:       true,
-		showRemoved:     true,
-		showModified:    true,
-		showUnmodified:  true,
+		treeVM:         treeVM,
+		focused:        false,
+		width:          80,
+		height:         20,
+		viewport:       v,
+		nodes:          []VisibleNode{},
+		cursor:         0,
+		scrollOff:      3, // Keep 3 lines visible above/below cursor (like vim scrolloff)
+		showAdded:      true,
+		showRemoved:    true,
+		showModified:   true,
+		showUnmodified: true,
 	}
 
 	// Build initial list items

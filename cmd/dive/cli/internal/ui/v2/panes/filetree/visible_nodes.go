@@ -157,7 +157,7 @@ func CollectVisibleNodesWithFilter(root *filetree.FileNode, opts FilterOptions) 
 
 		count := len(visibleChildren)
 		for i, child := range visibleChildren {
-			traverse(child, []bool{i == count - 1})
+			traverse(child, []bool{i == count-1})
 		}
 	}
 

@@ -15,16 +15,16 @@ type Component interface {
 
 // BaseComponent provides common functionality for all components
 type BaseComponent struct {
-	width  int
-	height int
+	width   int
+	height  int
 	focused bool
 }
 
 // NewBaseComponent creates a new base component
 func NewBaseComponent() BaseComponent {
 	return BaseComponent{
-		width:  0,
-		height: 0,
+		width:   0,
+		height:  0,
 		focused: false,
 	}
 }

@@ -100,7 +100,7 @@ func CollectFlatNodes(root *filetree.FileNode) []VisibleNode {
 		if node.Parent != nil {
 			nodes = append(nodes, VisibleNode{
 				Node:        node,
-				Prefix:      "", // No prefix in flat mode
+				Prefix:      "",          // No prefix in flat mode
 				DisplayName: node.Path(), // Use full path
 			})
 		}
@@ -135,7 +135,7 @@ func CollectSearchResults(root *filetree.FileNode, filter *regexp.Regexp) []Visi
 			if filter.MatchString(node.Path()) {
 				nodes = append(nodes, VisibleNode{
 					Node:        node,
-					Prefix:      "", // No tree prefix in flat mode
+					Prefix:      "",          // No tree prefix in flat mode
 					DisplayName: node.Path(), // Show full path
 				})
 			}

@@ -5,23 +5,23 @@ import (
 	"fmt"
 	"regexp"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/lrstanley/bubblezone"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/lrstanley/bubblezone"
 	v1 "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1/viewmodel"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/keys"
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/details"
 	filetreepane "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/filetree"
 	imagepane "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/image"
-	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/details"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/panes/layers"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
-	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
-	filetree "github.com/wagoodman/dive/dive/filetree"
+	"github.com/wagoodman/dive/dive/filetree"
 	"github.com/wagoodman/dive/dive/image"
 )
 
@@ -37,10 +37,10 @@ const (
 
 // Use layout package constants
 const (
-	BorderHeight         = layout.BorderHeight
-	HeaderHeight         = layout.HeaderHeight
-	BoxContentPadding    = layout.BoxContentPadding
-	ContentVisualOffset  = layout.ContentVisualOffset
+	BorderHeight        = layout.BorderHeight
+	HeaderHeight        = layout.HeaderHeight
+	BoxContentPadding   = layout.BoxContentPadding
+	ContentVisualOffset = layout.ContentVisualOffset
 )
 
 func (p Pane) String() string {
@@ -97,12 +97,12 @@ type Model struct {
 	activePane Pane
 
 	// Search state
-	searching      bool            // Whether search mode is active
-	previousPane   Pane            // Pane that was active before search (for Esc to restore focus)
-	searchInput   textinput.Model // Search input field
-	filterRegex   *regexp.Regexp  // Compiled regex for tree filtering
-	currentMatch  int             // Index of currently selected match (-1 if no match)
-	totalMatches  int             // Total number of matches
+	searching    bool            // Whether search mode is active
+	previousPane Pane            // Pane that was active before search (for Esc to restore focus)
+	searchInput  textinput.Model // Search input field
+	filterRegex  *regexp.Regexp  // Compiled regex for tree filtering
+	currentMatch int             // Index of currently selected match (-1 if no match)
+	totalMatches int             // Total number of matches
 
 	// Help and key bindings
 	keys keys.KeyMap
@@ -113,7 +113,7 @@ type Model struct {
 func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Preferences, ctx context.Context) Model {
 	// Initialize layer viewmodel
 	var layerVM *viewmodel.LayerSetState
-	if analysis.Layers != nil && len(analysis.Layers) > 0 {
+	if len(analysis.Layers) > 0 {
 		layerVM = viewmodel.NewLayerSetState(
 			analysis.Layers,
 			viewmodel.CompareSingleLayer,
@@ -158,28 +158,28 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 	// Create model with initial dimensions
 	// POLYMORPHISM: Store all panes as common.Pane interface
 	model := Model{
-		analysis:         analysis,
-		content:          content,
-		prefs:            prefs,
-		ctx:              ctx,
-		layerVM:          layerVM,
-		treeVM:           treeVM,
+		analysis: analysis,
+		content:  content,
+		prefs:    prefs,
+		ctx:      ctx,
+		layerVM:  layerVM,
+		treeVM:   treeVM,
 		panes: map[Pane]common.Pane{
 			PaneLayer:   &layersPane,
 			PaneDetails: &detailsPane,
 			PaneImage:   &imagePane,
 			PaneTree:    &treePane,
 		},
-		width:            80,
-		height:           24,
-		quitting:         false,
-		activePane:       PaneLayer,
-		searching:        false,
-		searchInput:      ti,
-		currentMatch:     -1,
-		totalMatches:     0,
-		keys:             keys.Keys,
-		help:             h,
+		width:        80,
+		height:       24,
+		quitting:     false,
+		activePane:   PaneLayer,
+		searching:    false,
+		searchInput:  ti,
+		currentMatch: -1,
+		totalMatches: 0,
+		keys:         keys.Keys,
+		help:         h,
 	}
 
 	// CRITICAL: Calculate initial layout immediately
@@ -606,12 +606,6 @@ func (m *Model) applyFilter(pattern string) {
 	m.currentMatch = -1
 }
 
-// countMatches counts the number of files matching the current filter
-// DEPRECATED: Use getVisibleNodeCount instead for better performance
-func (m *Model) countMatches() int {
-	return m.getVisibleNodeCount()
-}
-
 // getVisibleNodeCount efficiently gets the visible node count from the tree pane
 // This avoids double tree traversal
 func (m *Model) getVisibleNodeCount() int {
@@ -785,4 +779,3 @@ func (m *Model) jumpToMatch(matchIndex int) {
 		m.panes[PaneTree] = updatedPane
 	}
 }
-

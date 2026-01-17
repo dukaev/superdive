@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
@@ -105,17 +105,17 @@ func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 		// Handle scrolling
 		switch msg.String() {
 		case "up", "k":
-			m.viewport.LineUp(1)
+			m.viewport.ScrollUp(1)
 		case "down", "j":
-			m.viewport.LineDown(1)
+			m.viewport.ScrollDown(1)
 		}
 
 	case common.LocalMouseMsg:
 		if msg.Action == tea.MouseActionPress {
 			if msg.Button == tea.MouseButtonWheelUp {
-				m.viewport.LineUp(1)
+				m.viewport.ScrollUp(1)
 			} else if msg.Button == tea.MouseButtonWheelDown {
-				m.viewport.LineDown(1)
+				m.viewport.ScrollDown(1)
 			}
 		}
 	}

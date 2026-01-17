@@ -3,9 +3,9 @@ package filetree
 import (
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gkampitakis/go-snaps/snaps"
 	"github.com/stretchr/testify/require"
-	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/testutils"
 )

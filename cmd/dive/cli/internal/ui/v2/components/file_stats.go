@@ -272,7 +272,7 @@ func (r *FileStatsRow) GetPartPositions(startX int) (int, int, int, int, int, in
 	removedWidth := r.removed.GetVisualWidth()
 
 	addedX := startX
-	modifiedX := addedX + addedWidth + 1 // +1 for space
+	modifiedX := addedX + addedWidth + 1      // +1 for space
 	removedX := modifiedX + modifiedWidth + 1 // +1 for space
 
 	return addedX, addedWidth, modifiedX, modifiedWidth, removedX, removedWidth

@@ -40,12 +40,12 @@ const (
 	// Calculation: Prefix(5) + ID(4) + Pad(1) + Size(9) + Pad(1)
 	StatsStartOffset = ColWidthPrefix + ColWidthID + ColPadding + ColWidthSize + ColPadding
 	// Minimum width for columns (based on header text length)
-	MinWidthPrefix   = ColWidthPrefix
-	MinWidthID       = ColWidthID
-	MinWidthSize     = ColWidthSize
-	MinWidthDigest   = 6 // "Digest" (6 chars)
-	MinWidthStats    = 5 // "A M D" (5 chars) - fixed from 3
-	MinWidthCommand  = 7 // "Command" (7 chars) - new constant
+	MinWidthPrefix  = ColWidthPrefix
+	MinWidthID      = ColWidthID
+	MinWidthSize    = ColWidthSize
+	MinWidthDigest  = 6 // "Digest" (6 chars)
+	MinWidthStats   = 5 // "A M D" (5 chars) - fixed from 3
+	MinWidthCommand = 7 // "Command" (7 chars) - new constant
 )
 
 // GetColumnVisibility determines which columns should be shown based on width
@@ -69,16 +69,16 @@ func GetColumnVisibility(width int) (showCommand, showDigest, showStats bool) {
 
 // Pane manages the layers list
 type Pane struct {
-	focused    bool // Set by parent via FocusStateMsg, not by Focus()/Blur() methods
-	width      int
-	height     int
-	layerVM    *viewmodel.LayerSetState
-	comparer   *filetree.Comparer // For computing layer comparison trees
-	viewport   viewport.Model
-	layerIndex int
-	statsRows  []components.FileStatsRow // Stats row for each layer
-	statsCache []domain.FileStats        // Cached statistics for each layer (calculated once)
-	statsWidths [3]int                  // [0]=AddedWidth, [1]=ModifiedWidth, [2]=RemovedWidth
+	focused     bool // Set by parent via FocusStateMsg, not by Focus()/Blur() methods
+	width       int
+	height      int
+	layerVM     *viewmodel.LayerSetState
+	comparer    *filetree.Comparer // For computing layer comparison trees
+	viewport    viewport.Model
+	layerIndex  int
+	statsRows   []components.FileStatsRow // Stats row for each layer
+	statsCache  []domain.FileStats        // Cached statistics for each layer (calculated once)
+	statsWidths [3]int                    // [0]=AddedWidth, [1]=ModifiedWidth, [2]=RemovedWidth
 }
 
 // New creates a new layers pane
@@ -418,7 +418,7 @@ func (m *Pane) generateContent() string {
 		statsStr := ""
 		statsStrPlain := "" // Plain version without colors for width calculation
 		if showStats && i < len(m.statsRows) && i < len(m.statsCache) {
-			// PERFOMANCE: Use cached stats instead of recalculating on every render
+			// PERFORMANCE: Use cached stats instead of recalculating on every render
 			// This avoids expensive tree traversal (CalculateFileStats) during scrolling
 			stats := m.statsCache[i]
 			m.statsRows[i].SetStats(stats)

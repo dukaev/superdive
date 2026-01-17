@@ -33,9 +33,9 @@ var (
 
 // SelectedLayerStyle highlights the currently selected layer
 var SelectedLayerStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(PrimaryColor).
-		Background(PanelBgColor)
+	Bold(true).
+	Foreground(PrimaryColor).
+	Background(PanelBgColor)
 
 // LayerHeaderStyle for layer field headers
 var LayerHeaderStyle = lipgloss.NewStyle().
@@ -44,34 +44,34 @@ var LayerHeaderStyle = lipgloss.NewStyle().
 
 // LayerValueStyle for layer field values
 var LayerValueStyle = lipgloss.NewStyle().
-		Foreground(MutedTextColor) // Changed from LightGray to adaptive MutedTextColor
+	Foreground(MutedTextColor) // Changed from LightGray to adaptive MutedTextColor
 
 // FileTreeDirStyle for directories in file tree
 var FileTreeDirStyle = lipgloss.NewStyle().
-		Foreground(SuccessColor).
-		Bold(true)
+	Foreground(SuccessColor).
+	Bold(true)
 
 // FileTreeModifiedStyle for modified files in file tree
 var FileTreeModifiedStyle = lipgloss.NewStyle().
-		Foreground(WarningColor).
-		Bold(true)
+	Foreground(WarningColor).
+	Bold(true)
 
 // --- File Stats Styles ---
 
 // FileStatsAddedStyle for added files count
 var FileStatsAddedStyle = lipgloss.NewStyle().
-		Foreground(SuccessColor).
-		Bold(true)
+	Foreground(SuccessColor).
+	Bold(true)
 
 // FileStatsModifiedStyle for modified files count
 var FileStatsModifiedStyle = lipgloss.NewStyle().
-		Foreground(WarningColor).
-		Bold(true)
+	Foreground(WarningColor).
+	Bold(true)
 
 // FileStatsRemovedStyle for removed files count
 var FileStatsRemovedStyle = lipgloss.NewStyle().
-		Foreground(ErrorColor).
-		Bold(true)
+	Foreground(ErrorColor).
+	Bold(true)
 
 // --- Rendering Functions ---
 
@@ -152,19 +152,19 @@ var HelpStyle = lipgloss.NewStyle().
 
 // SearchPrefixStyle for the "Filter:" prefix in search bar
 var SearchPrefixStyle = lipgloss.NewStyle().
-	Foreground(PanelBgColor).  // Dark text
-	Background(PrimaryColor).  // Accent background (blue)
+	Foreground(PanelBgColor). // Dark text
+	Background(PrimaryColor). // Accent background (blue)
 	Bold(true).
 	Padding(0, 1)
 
 // SearchInputStyle for the search input text (blue like the prefix)
 var SearchInputStyle = lipgloss.NewStyle().
-	Foreground(PrimaryColor).   // Blue text (accent color)
+	Foreground(PrimaryColor).     // Blue text (accent color)
 	Background(StatusBarBgColor). // Dark gray status bar background
 	Padding(0, 1)
 
 // SearchErrorStyle for invalid regex indication
 var SearchErrorStyle = lipgloss.NewStyle().
-	Foreground(ErrorColor).    // Red text on error
+	Foreground(ErrorColor). // Red text on error
 	Background(StatusBarBgColor).
 	Padding(0, 1)

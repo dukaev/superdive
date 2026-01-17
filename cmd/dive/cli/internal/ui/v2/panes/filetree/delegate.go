@@ -5,8 +5,8 @@ import (
 	"io"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
@@ -148,13 +148,10 @@ func (d TreeDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		styledIcon = lipgloss.NewStyle().Background(metaBg).Render(icon)
 	}
 
-	// Apply background to diffIcon and icon if selected
-	if isSelected {
+	// Apply background to diffIcon if selected
+	if isSelected && diffIcon != "" {
 		bg := styles.SelectionBgColor
-		if diffIcon != "" {
-			diffIcon = lipgloss.NewStyle().Background(bg).Render(diffIcon)
-		}
-		icon = lipgloss.NewStyle().Background(bg).Render(icon)
+		diffIcon = lipgloss.NewStyle().Background(bg).Render(diffIcon)
 	}
 
 	// Padding between name and metadata

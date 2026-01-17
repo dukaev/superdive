@@ -8,16 +8,16 @@ import (
 	"github.com/anchore/clio"
 	"github.com/anchore/go-logger/adapter/discard"
 	"github.com/charmbracelet/bubbletea"
-	"github.com/lrstanley/bubblezone"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/lrstanley/bubblezone"
 	"github.com/muesli/termenv"
 	v1 "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v1"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app"
+	"github.com/wagoodman/dive/dive/image"
 	"github.com/wagoodman/dive/internal/bus/event"
 	"github.com/wagoodman/dive/internal/bus/event/parser"
 	"github.com/wagoodman/dive/internal/log"
 	"github.com/wagoodman/go-partybus"
-	"github.com/wagoodman/dive/dive/image"
 )
 
 var _ clio.UI = (*V2UI)(nil)
@@ -29,13 +29,6 @@ type V2UI struct {
 	subscription partybus.Unsubscribable
 	quiet        bool
 	verbosity    int
-}
-
-type format struct {
-	Title        lipgloss.Style
-	Aux          lipgloss.Style
-	Line         lipgloss.Style
-	Notification lipgloss.Style
 }
 
 func NewV2UI(cfg v1.Preferences, out *os.File, quiet bool, verbosity int) *V2UI {

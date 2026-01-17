@@ -82,9 +82,9 @@ func LoadTestImage(t *testing.T) TestImageData {
 // TestLayout provides a test layout message for panes
 func TestLayout() common.LayoutMsg {
 	return common.LayoutMsg{
-		LeftWidth:   50,
-		RightWidth:  50,
-		LayersHeight: 10,
+		LeftWidth:     50,
+		RightWidth:    50,
+		LayersHeight:  10,
 		DetailsHeight: 8,
 		ImageHeight:   12,
 		TreeHeight:    15,
