@@ -584,14 +584,19 @@ func (p *Pane) GetVisibleNodeCount() int {
 	return len(p.nodes)
 }
 
+// GetFilterState returns the current filter state for the help bar styling
+func (p *Pane) GetFilterState() (showAdded, showRemoved, showModified, showUnmodified bool) {
+	return p.showAdded, p.showRemoved, p.showModified, p.showUnmodified
+}
+
 // ShortHelp returns key bindings specific to the file tree pane.
 // File tree has unique navigation keys for collapsing/expanding folders.
 func (p *Pane) ShortHelp() []key.Binding {
 	return []key.Binding{
-		keys.Keys.Enter,         // Open folder or select file
-		keys.Keys.Space,         // Toggle folder collapse/expand
-		keys.Keys.CollapseAll,   // Collapse all directories
+		keys.Keys.ToggleAdded,      // Toggle added files
+		keys.Keys.ToggleRemoved,    // Toggle removed files
+		keys.Keys.ToggleModified,   // Toggle modified files
 		keys.Keys.ToggleUnmodified, // Toggle unmodified files
-		keys.Keys.ToggleView,    // Toggle flat/tree view
+		keys.Keys.ToggleView,       // Toggle flat/tree view
 	}
 }

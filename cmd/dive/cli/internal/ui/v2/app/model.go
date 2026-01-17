@@ -256,6 +256,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// IMPORTANT: Handle Ctrl+C first using type check for reliability
+		// This ensures Ctrl+C always works, regardless of which pane is focused
+		if msg.Type == tea.KeyCtrlC {
+			m.quitting = true
+			return m, tea.Quit
+		}
+
 		// If searching is active, handle search mode
 		if m.searching {
 			return m.updateSearch(msg)
@@ -274,7 +281,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Global key bindings
 		switch msg.String() {
-		case "q", "ctrl+c":
+		case "q":
 			m.quitting = true
 			return m, tea.Quit
 
@@ -655,6 +662,12 @@ func (m Model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// IMPORTANT: Handle Ctrl+C first to allow quitting even in search mode
+		if msg.Type == tea.KeyCtrlC {
+			m.quitting = true
+			return m, tea.Quit
+		}
+
 		switch msg.String() {
 		case "enter":
 			// Jump to first match and exit search mode

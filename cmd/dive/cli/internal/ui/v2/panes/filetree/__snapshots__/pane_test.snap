@@ -29,19 +29,19 @@
 │Name                             Size    UID:GID│
 │├─󰝰 bin                                        -│
 ││ ├─󰈔 [                          1.0M          -│
-││ ├─󰈔 [[                           0b          -│
-││ ├─󰈔 acpid                        0b          -│
-││ ├─󰈔 add-shell                    0b          -│
-││ ├─󰈔 addgroup                     0b          -│
-││ ├─󰈔 adduser                      0b          -│
-││ ├─󰈔 adjtimex                     0b          -│
-││ ├─󰈔 ar                           0b          -│
-││ ├─󰈔 arch                         0b          -│
-││ ├─󰈔 arp                          0b          -│
-││ ├─󰈔 arping                       0b          -│
-││ ├─󰈔 ash                          0b          -│
-││ ├─󰈔 awk                          0b          -│
-││ ├─󰈔 base64                       0b          -│
+││ ├─󰈔 [[                            0          -│
+││ ├─󰈔 acpid                         0          -│
+││ ├─󰈔 add-shell                     0          -│
+││ ├─󰈔 addgroup                      0          -│
+││ ├─󰈔 adduser                       0          -│
+││ ├─󰈔 adjtimex                      0          -│
+││ ├─󰈔 ar                            0          -│
+││ ├─󰈔 arch                          0          -│
+││ ├─󰈔 arp                           0          -│
+││ ├─󰈔 arping                        0          -│
+││ ├─󰈔 ash                           0          -│
+││ ├─󰈔 awk                           0          -│
+││ ├─󰈔 base64                        0          -│
 ╰────────────────────────────────────────────────╯
 ---
 
@@ -52,19 +52,19 @@
 │Name                             Size    UID:GID│
 │├─󰝰 bin                                        -│
 ││ ├─󰈔 [                          1.0M          -│
-││ ├─󰈔 [[                           0b          -│
-││ ├─󰈔 acpid                        0b          -│
-││ ├─󰈔 add-shell                    0b          -│
-││ ├─󰈔 addgroup                     0b          -│
-││ ├─󰈔 adduser                      0b          -│
-││ ├─󰈔 adjtimex                     0b          -│
-││ ├─󰈔 ar                           0b          -│
-││ ├─󰈔 arch                         0b          -│
-││ ├─󰈔 arp                          0b          -│
-││ ├─󰈔 arping                       0b          -│
-││ ├─󰈔 ash                          0b          -│
-││ ├─󰈔 awk                          0b          -│
-││ ├─󰈔 base64                       0b          -│
+││ ├─󰈔 [[                            0          -│
+││ ├─󰈔 acpid                         0          -│
+││ ├─󰈔 add-shell                     0          -│
+││ ├─󰈔 addgroup                      0          -│
+││ ├─󰈔 adduser                       0          -│
+││ ├─󰈔 adjtimex                      0          -│
+││ ├─󰈔 ar                            0          -│
+││ ├─󰈔 arch                          0          -│
+││ ├─󰈔 arp                           0          -│
+││ ├─󰈔 arping                        0          -│
+││ ├─󰈔 ash                           0          -│
+││ ├─󰈔 awk                           0          -│
+││ ├─󰈔 base64                        0          -│
 ╰────────────────────────────────────────────────╯
 ---
 
@@ -98,7 +98,7 @@
 │Name                             Size    UID:GID│
 │├─󰝰 bin                                        -│
 ││ ├─󰈔 [                          1.0M          -│
-││ ├─󰈔 [[                           0b          -│
+││ ├─󰈔 [[                            0          -│
 ╰────────────────────────────────────────────────╯
 ---
 
@@ -109,39 +109,39 @@
 │Name                                                                                      Size    UID:GID  Permissions│
 │├─󰝰 bin                                                                                                 -   drwxr-xr-x│
 ││ ├─󰈔 [                                                                                   1.0M          -   -rwxr-xr-x│
-││ ├─󰈔 [[                                                                                    0b          -   -rwxr-xr-x│
-││ ├─󰈔 acpid                                                                                 0b          -   -rwxr-xr-x│
-││ ├─󰈔 add-shell                                                                             0b          -   -rwxr-xr-x│
-││ ├─󰈔 addgroup                                                                              0b          -   -rwxr-xr-x│
-││ ├─󰈔 adduser                                                                               0b          -   -rwxr-xr-x│
-││ ├─󰈔 adjtimex                                                                              0b          -   -rwxr-xr-x│
-││ ├─󰈔 ar                                                                                    0b          -   -rwxr-xr-x│
-││ ├─󰈔 arch                                                                                  0b          -   -rwxr-xr-x│
-││ ├─󰈔 arp                                                                                   0b          -   -rwxr-xr-x│
-││ ├─󰈔 arping                                                                                0b          -   -rwxr-xr-x│
-││ ├─󰈔 ash                                                                                   0b          -   -rwxr-xr-x│
-││ ├─󰈔 awk                                                                                   0b          -   -rwxr-xr-x│
-││ ├─󰈔 base64                                                                                0b          -   -rwxr-xr-x│
-││ ├─󰈔 basename                                                                              0b          -   -rwxr-xr-x│
-││ ├─󰈔 beep                                                                                  0b          -   -rwxr-xr-x│
-││ ├─󰈔 blkdiscard                                                                            0b          -   -rwxr-xr-x│
-││ ├─󰈔 blkid                                                                                 0b          -   -rwxr-xr-x│
-││ ├─󰈔 blockdev                                                                              0b          -   -rwxr-xr-x│
-││ ├─󰈔 bootchartd                                                                            0b          -   -rwxr-xr-x│
-││ ├─󰈔 brctl                                                                                 0b          -   -rwxr-xr-x│
-││ ├─󰈔 bunzip2                                                                               0b          -   -rwxr-xr-x│
-││ ├─󰈔 busybox                                                                               0b          -   -rwxr-xr-x│
-││ ├─󰈔 bzcat                                                                                 0b          -   -rwxr-xr-x│
-││ ├─󰈔 bzip2                                                                                 0b          -   -rwxr-xr-x│
-││ ├─󰈔 cal                                                                                   0b          -   -rwxr-xr-x│
-││ ├─󰈔 cat                                                                                   0b          -   -rwxr-xr-x│
-││ ├─󰈔 chat                                                                                  0b          -   -rwxr-xr-x│
-││ ├─󰈔 chattr                                                                                0b          -   -rwxr-xr-x│
-││ ├─󰈔 chgrp                                                                                 0b          -   -rwxr-xr-x│
-││ ├─󰈔 chmod                                                                                 0b          -   -rwxr-xr-x│
-││ ├─󰈔 chown                                                                                 0b          -   -rwxr-xr-x│
-││ ├─󰈔 chpasswd                                                                              0b          -   -rwxr-xr-x│
-││ ├─󰈔 chpst                                                                                 0b          -   -rwxr-xr-x│
+││ ├─󰈔 [[                                                                                     0          -   -rwxr-xr-x│
+││ ├─󰈔 acpid                                                                                  0          -   -rwxr-xr-x│
+││ ├─󰈔 add-shell                                                                              0          -   -rwxr-xr-x│
+││ ├─󰈔 addgroup                                                                               0          -   -rwxr-xr-x│
+││ ├─󰈔 adduser                                                                                0          -   -rwxr-xr-x│
+││ ├─󰈔 adjtimex                                                                               0          -   -rwxr-xr-x│
+││ ├─󰈔 ar                                                                                     0          -   -rwxr-xr-x│
+││ ├─󰈔 arch                                                                                   0          -   -rwxr-xr-x│
+││ ├─󰈔 arp                                                                                    0          -   -rwxr-xr-x│
+││ ├─󰈔 arping                                                                                 0          -   -rwxr-xr-x│
+││ ├─󰈔 ash                                                                                    0          -   -rwxr-xr-x│
+││ ├─󰈔 awk                                                                                    0          -   -rwxr-xr-x│
+││ ├─󰈔 base64                                                                                 0          -   -rwxr-xr-x│
+││ ├─󰈔 basename                                                                               0          -   -rwxr-xr-x│
+││ ├─󰈔 beep                                                                                   0          -   -rwxr-xr-x│
+││ ├─󰈔 blkdiscard                                                                             0          -   -rwxr-xr-x│
+││ ├─󰈔 blkid                                                                                  0          -   -rwxr-xr-x│
+││ ├─󰈔 blockdev                                                                               0          -   -rwxr-xr-x│
+││ ├─󰈔 bootchartd                                                                             0          -   -rwxr-xr-x│
+││ ├─󰈔 brctl                                                                                  0          -   -rwxr-xr-x│
+││ ├─󰈔 bunzip2                                                                                0          -   -rwxr-xr-x│
+││ ├─󰈔 busybox                                                                                0          -   -rwxr-xr-x│
+││ ├─󰈔 bzcat                                                                                  0          -   -rwxr-xr-x│
+││ ├─󰈔 bzip2                                                                                  0          -   -rwxr-xr-x│
+││ ├─󰈔 cal                                                                                    0          -   -rwxr-xr-x│
+││ ├─󰈔 cat                                                                                    0          -   -rwxr-xr-x│
+││ ├─󰈔 chat                                                                                   0          -   -rwxr-xr-x│
+││ ├─󰈔 chattr                                                                                 0          -   -rwxr-xr-x│
+││ ├─󰈔 chgrp                                                                                  0          -   -rwxr-xr-x│
+││ ├─󰈔 chmod                                                                                  0          -   -rwxr-xr-x│
+││ ├─󰈔 chown                                                                                  0          -   -rwxr-xr-x│
+││ ├─󰈔 chpasswd                                                                               0          -   -rwxr-xr-x│
+││ ├─󰈔 chpst                                                                                  0          -   -rwxr-xr-x│
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ---
 
@@ -152,14 +152,14 @@
 │Name                             Size    UID:GID│
 │├─󰝰 bin                                        -│
 ││ ├─󰈔 [                          1.0M          -│
-││ ├─󰈔 [[                           0b          -│
-││ ├─󰈔 acpid                        0b          -│
-││ ├─󰈔 add-shell                    0b          -│
-││ ├─󰈔 addgroup                     0b          -│
-││ ├─󰈔 adduser                      0b          -│
-││ ├─󰈔 adjtimex                     0b          -│
-││ ├─󰈔 ar                           0b          -│
-││ ├─󰈔 arch                         0b          -│
+││ ├─󰈔 [[                            0          -│
+││ ├─󰈔 acpid                         0          -│
+││ ├─󰈔 add-shell                     0          -│
+││ ├─󰈔 addgroup                      0          -│
+││ ├─󰈔 adduser                       0          -│
+││ ├─󰈔 adjtimex                      0          -│
+││ ├─󰈔 ar                            0          -│
+││ ├─󰈔 arch                          0          -│
 ╰────────────────────────────────────────────────╯
 ---
 
@@ -169,19 +169,19 @@
 │                                                │
 │Name                             Size    UID:GID│
 ││ ├─󰈔 [                          1.0M          -│
-││ ├─󰈔 [[                           0b          -│
-││ ├─󰈔 acpid                        0b          -│
-││ ├─󰈔 add-shell                    0b          -│
-││ ├─󰈔 addgroup                     0b          -│
-││ ├─󰈔 adduser                      0b          -│
-││ ├─󰈔 adjtimex                     0b          -│
-││ ├─󰈔 ar                           0b          -│
-││ ├─󰈔 arch                         0b          -│
-││ ├─󰈔 arp                          0b          -│
-││ ├─󰈔 arping                       0b          -│
-││ ├─󰈔 ash                          0b          -│
-││ ├─󰈔 awk                          0b          -│
-││ ├─󰈔 base64                       0b          -│
-││ ├─󰈔 basename                     0b          -│
+││ ├─󰈔 [[                            0          -│
+││ ├─󰈔 acpid                         0          -│
+││ ├─󰈔 add-shell                     0          -│
+││ ├─󰈔 addgroup                      0          -│
+││ ├─󰈔 adduser                       0          -│
+││ ├─󰈔 adjtimex                      0          -│
+││ ├─󰈔 ar                            0          -│
+││ ├─󰈔 arch                          0          -│
+││ ├─󰈔 arp                           0          -│
+││ ├─󰈔 arping                        0          -│
+││ ├─󰈔 ash                           0          -│
+││ ├─󰈔 awk                           0          -│
+││ ├─󰈔 base64                        0          -│
+││ ├─󰈔 basename                      0          -│
 ╰────────────────────────────────────────────────╯
 ---

@@ -3,9 +3,14 @@ package utils
 import "fmt"
 
 // FormatSize formats bytes into compact human-readable size (max 4 chars)
-// Examples: 999b, 1k, 1.5k, 10k, 12M, 100M, 1.5G
+// Examples: 0, 999b, 1k, 1.5k, 10k, 12M, 100M, 1.5G
 func FormatSize(bytes uint64) string {
 	const unit = 1024
+
+	// Special case: zero bytes should show as "0" not "0b"
+	if bytes == 0 {
+		return "0"
+	}
 
 	if bytes < 1000 {
 		return fmt.Sprintf("%db", bytes)

@@ -27,7 +27,7 @@ type KeyMap struct {
 
 // ShortHelp returns keys that are always visible
 func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Tab, k.Up, k.Down, k.Enter, k.Filter, k.ToggleView, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Enter, k.Filter, k.ToggleView}
 }
 
 // FullHelp returns all keys (for extended help)

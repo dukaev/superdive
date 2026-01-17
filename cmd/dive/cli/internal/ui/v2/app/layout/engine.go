@@ -45,12 +45,14 @@ func (e *Engine) Calculate(width, height int) Result {
 		availableHeight = 10
 	}
 
-	// Calculate widths (50/50 split with gap)
-	result.LeftWidth = (width - 4) / 2
+	// Calculate widths (50/50 split)
+	// Left panel gets half the space, right panel gets the rest
+	// No gap between panels (lipgloss.JoinHorizontal joins them directly)
+	result.LeftWidth = width / 2
 	if result.LeftWidth < 20 {
 		result.LeftWidth = 20
 	}
-	result.RightWidth = width - result.LeftWidth - 2
+	result.RightWidth = width - result.LeftWidth // Right panel gets remaining space
 	if result.RightWidth < 20 {
 		result.RightWidth = 20
 	}
