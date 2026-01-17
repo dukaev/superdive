@@ -416,6 +416,7 @@ func (m *Pane) generateContent() string {
 
 		// Update and get stats from component
 		statsStr := ""
+		statsStrPlain := "" // Plain version without colors for width calculation
 		if showStats && i < len(m.statsRows) && i < len(m.statsCache) {
 			// PERFOMANCE: Use cached stats instead of recalculating on every render
 			// This avoids expensive tree traversal (CalculateFileStats) during scrolling
@@ -425,10 +426,13 @@ func (m *Pane) generateContent() string {
 			// Set dynamic widths for stats columns
 			m.statsRows[i].SetWidths(m.statsWidths[0], m.statsWidths[1], m.statsWidths[2])
 
+			// Always get plain version for width calculation
+			statsStrPlain = m.statsRows[i].RenderPlain()
+
 			// Use plain rendering for selected layer to allow background highlight
 			// Colors would interfere with the row background color
 			if i == m.layerIndex {
-				statsStr = m.statsRows[i].RenderPlain()
+				statsStr = statsStrPlain
 			} else {
 				statsStr = m.statsRows[i].Render()
 			}
@@ -452,21 +456,26 @@ func (m *Pane) generateContent() string {
 			}
 		}
 
-		// Format command with dynamic truncation based on available width
+		// Format command to take ALL remaining space
 		cmd := ""
+		cmdWidth := 0 // Will store the actual width allocated to command
 		if showCommand {
-			// Clean command from newlines
-			rawCmd := strings.ReplaceAll(layer.Command, "\n", " ")
-			rawCmd = strings.TrimSpace(rawCmd)
+			// Clean command: replace tabs/newlines with spaces, collapse multiple spaces
+			rawCmd := strings.ReplaceAll(layer.Command, "\t", " ")
+			rawCmd = strings.ReplaceAll(rawCmd, "\n", " ")
+			rawCmd = strings.ReplaceAll(rawCmd, "\r", " ")
 
-			// Calculate available space for command
-			// Base columns: Prefix(5) + ID(4) + Size(7) + padding(2) = 18
+			// Collapse multiple spaces into one
+			words := strings.Fields(rawCmd)
+			rawCmd = strings.Join(words, " ")
+
+			// Calculate used width by fixed columns
+			// Base: Prefix(5) + ID(4) + Size(7) + padding(2) = 18
 			usedWidth := ColWidthPrefix + ColWidthID + ColPadding + ColWidthSize + ColPadding
 
-			// Add stats width if visible
+			// Add stats width if visible (use PLAIN version to ignore ANSI colors)
 			if showStats {
-				// statsStr contains formatted stats with spaces between them
-				usedWidth += runewidth.StringWidth(statsStr) + ColPadding
+				usedWidth += runewidth.StringWidth(statsStrPlain) + ColPadding
 			}
 
 			// Add digest width if visible
@@ -474,16 +483,16 @@ func (m *Pane) generateContent() string {
 				usedWidth += 6 + ColPadding // Digest is always 6 chars
 			}
 
-			// Calculate remaining space for command
-			availableWidth := width - usedWidth
-			if availableWidth < 1 {
-				availableWidth = 1
+			// Command gets ALL remaining space
+			cmdWidth = width - usedWidth
+			if cmdWidth < 1 {
+				cmdWidth = 1
 			}
 
-			// Truncate command to available width dynamically
+			// Truncate command to exactly fit available width
 			cmd = rawCmd
-			if runewidth.StringWidth(cmd) > availableWidth {
-				cmd = runewidth.Truncate(cmd, availableWidth, "")
+			if runewidth.StringWidth(cmd) > cmdWidth {
+				cmd = runewidth.Truncate(cmd, cmdWidth, "")
 			}
 		}
 
@@ -491,13 +500,14 @@ func (m *Pane) generateContent() string {
 		var text string
 		if showDigest && showCommand {
 			// All columns: Prefix ID Size Stats Digest Command
-			text = fmt.Sprintf("%-*s%-*s %*s %s %s %s",
+			// Command uses dynamic width to fill remaining space
+			text = fmt.Sprintf("%-*s%-*s %*s %s %s %-*s",
 				ColWidthPrefix, prefix,
 				ColWidthID, id,
 				ColWidthSize, size,
 				statsStr,
 				digest,
-				cmd,
+				cmdWidth, cmd,
 			)
 		} else if showDigest {
 			// Without Command: Prefix ID Size Stats Digest
@@ -510,12 +520,13 @@ func (m *Pane) generateContent() string {
 			)
 		} else if showCommand {
 			// Without Digest: Prefix ID Size Stats Command
-			text = fmt.Sprintf("%-*s%-*s %*s %s %s",
+			// Command uses dynamic width to fill remaining space
+			text = fmt.Sprintf("%-*s%-*s %*s %s %-*s",
 				ColWidthPrefix, prefix,
 				ColWidthID, id,
 				ColWidthSize, size,
 				statsStr,
-				cmd,
+				cmdWidth, cmd,
 			)
 		} else {
 			// Only Stats: Prefix ID Size Stats

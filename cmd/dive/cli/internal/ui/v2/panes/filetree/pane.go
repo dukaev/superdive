@@ -13,6 +13,7 @@ import (
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/keys"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
+	"github.com/wagoodman/dive/dive/filetree"
 )
 
 // FocusStateMsg is sent by parent to tell the pane whether it's focused or not
@@ -71,6 +72,12 @@ type Pane struct {
 	scrollOff   int // Number of lines to keep visible above/below cursor (scrolloff)
 	flatMode    bool // true = Flat View, false = Tree View
 	filterRegex *regexp.Regexp // Active filter regex for highlighting and clean search
+
+	// Diff type filter states (default: show all)
+	showAdded      bool
+	showRemoved    bool
+	showModified   bool
+	showUnmodified bool
 }
 
 // New creates a new tree pane with viewport for smooth scrolling
@@ -78,14 +85,18 @@ func New(treeVM *viewmodel.FileTreeViewModel) Pane {
 	v := viewport.New(80, 20)
 
 	p := Pane{
-		treeVM:    treeVM,
-		focused:   false,
-		width:     80,
-		height:    20,
-		viewport:  v,
-		nodes:     []VisibleNode{},
-		cursor:    0,
-		scrollOff: 3, // Keep 3 lines visible above/below cursor (like vim scrolloff)
+		treeVM:          treeVM,
+		focused:         false,
+		width:           80,
+		height:          20,
+		viewport:        v,
+		nodes:           []VisibleNode{},
+		cursor:          0,
+		scrollOff:       3, // Keep 3 lines visible above/below cursor (like vim scrolloff)
+		showAdded:       true,
+		showRemoved:     true,
+		showModified:    true,
+		showUnmodified:  true,
 	}
 
 	// Build initial list items
@@ -183,6 +194,32 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 			return p, p.handleLeftKey()
 		case "f":
 			p.flatMode = !p.flatMode
+			p.rebuildNodes()
+			return p, nil
+		// Tree folding controls
+		case "C":
+			p.setAllCollapsed(true)
+			p.rebuildNodes()
+			return p, nil
+		case "O":
+			p.setAllCollapsed(false)
+			p.rebuildNodes()
+			return p, nil
+		// Diff type filter toggles
+		case "a":
+			p.showAdded = !p.showAdded
+			p.rebuildNodes()
+			return p, nil
+		case "r":
+			p.showRemoved = !p.showRemoved
+			p.rebuildNodes()
+			return p, nil
+		case "m":
+			p.showModified = !p.showModified
+			p.rebuildNodes()
+			return p, nil
+		case "u":
+			p.showUnmodified = !p.showUnmodified
 			p.rebuildNodes()
 			return p, nil
 		}
@@ -407,18 +444,30 @@ func (p *Pane) rebuildNodes() {
 		return
 	}
 
+	// Create filter options based on current toggle states
+	opts := FilterOptions{
+		ShowAdded:      p.showAdded,
+		ShowRemoved:    p.showRemoved,
+		ShowModified:   p.showModified,
+		ShowUnmodified: p.showUnmodified,
+	}
+
 	// Flatten tree structure into visible nodes
 	// Use different strategy based on current view mode and filter state
 	if p.flatMode && p.filterRegex != nil {
 		// Clean search mode: Flat View + Active Filter
 		// Show ONLY matching nodes, no parent directories (Google-style)
 		p.nodes = CollectSearchResults(p.treeVM.ViewTree.Root, p.filterRegex)
+		// Apply diff type filtering to search results
+		p.nodes = FilterFlatList(p.nodes, opts)
 	} else if p.flatMode {
 		// Flat View without filter (manual toggle with 'f')
 		p.nodes = CollectFlatNodes(p.treeVM.ViewTree.Root)
+		// Apply diff type filtering
+		p.nodes = FilterFlatList(p.nodes, opts)
 	} else {
-		// Regular Tree View
-		p.nodes = CollectVisibleNodes(p.treeVM.ViewTree.Root)
+		// Regular Tree View with diff type filtering
+		p.nodes = CollectVisibleNodesWithFilter(p.treeVM.ViewTree.Root, opts)
 	}
 
 	// Ensure cursor is valid
@@ -441,6 +490,30 @@ func (p *Pane) updateViewportHeight() {
 	// This is extremely cheap (fast) compared to rendering the tree.
 	// The viewport uses this to calculate scroll percentage and boundaries.
 	p.viewport.SetContent(strings.Repeat("\n", len(p.nodes)-1))
+}
+
+// setAllCollapsed recursively sets the collapsed state of all directories
+func (p *Pane) setAllCollapsed(collapsed bool) {
+	if p.treeVM == nil || p.treeVM.ViewTree == nil || p.treeVM.ViewTree.Root == nil {
+		return
+	}
+
+	var traverse func(node *filetree.FileNode)
+	traverse = func(node *filetree.FileNode) {
+		if node.Data.FileInfo.IsDir() {
+			node.Data.ViewInfo.Collapsed = collapsed
+			for _, child := range node.Children {
+				traverse(child)
+			}
+		}
+	}
+
+	// Don't collapse the root itself, usually user wants to see top level
+	// But we do traverse its children
+	root := p.treeVM.ViewTree.Root
+	for _, child := range root.Children {
+		traverse(child)
+	}
 }
 
 // toggleCollapse toggles the collapsed state of the selected directory
@@ -515,10 +588,10 @@ func (p *Pane) GetVisibleNodeCount() int {
 // File tree has unique navigation keys for collapsing/expanding folders.
 func (p *Pane) ShortHelp() []key.Binding {
 	return []key.Binding{
-		keys.Keys.Enter,     // Open folder or select file
-		keys.Keys.Space,     // Toggle folder collapse/expand
-		keys.Keys.Left,      // Navigate to parent or collapse
-		keys.Keys.Right,     // Navigate into folder
-		keys.Keys.ToggleView, // Toggle flat/tree view
+		keys.Keys.Enter,         // Open folder or select file
+		keys.Keys.Space,         // Toggle folder collapse/expand
+		keys.Keys.CollapseAll,   // Collapse all directories
+		keys.Keys.ToggleUnmodified, // Toggle unmodified files
+		keys.Keys.ToggleView,    // Toggle flat/tree view
 	}
 }

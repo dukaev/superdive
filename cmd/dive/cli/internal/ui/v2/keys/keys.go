@@ -15,6 +15,14 @@ type KeyMap struct {
 	Esc       key.Binding
 	Space     key.Binding
 	ToggleView key.Binding
+
+	// Tree Control Keys
+	CollapseAll      key.Binding
+	ExpandAll        key.Binding
+	ToggleAdded      key.Binding
+	ToggleRemoved    key.Binding
+	ToggleModified   key.Binding
+	ToggleUnmodified key.Binding
 }
 
 // ShortHelp returns keys that are always visible
@@ -25,9 +33,11 @@ func (k KeyMap) ShortHelp() []key.Binding {
 // FullHelp returns all keys (for extended help)
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down},             // Navigation
-		{k.Enter, k.Space},         // Actions
-		{k.Tab, k.Filter, k.ToggleView, k.Quit}, // System
+		{k.Up, k.Down},                           // Navigation
+		{k.Enter, k.Space},                       // Actions
+		{k.CollapseAll, k.ExpandAll},             // Tree folding
+		{k.ToggleAdded, k.ToggleRemoved, k.ToggleModified, k.ToggleUnmodified}, // Filters
+		{k.Tab, k.Filter, k.ToggleView, k.Quit},  // System
 	}
 }
 
@@ -43,4 +53,12 @@ var Keys = KeyMap{
 	Esc:       key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 	Space:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "toggle folder")),
 	ToggleView: key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "toggle view")),
+
+	// Tree control bindings
+	CollapseAll:      key.NewBinding(key.WithKeys("C"), key.WithHelp("shift+c", "collapse all")),
+	ExpandAll:        key.NewBinding(key.WithKeys("O"), key.WithHelp("shift+o", "expand all")),
+	ToggleAdded:      key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "toggle added")),
+	ToggleRemoved:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "toggle removed")),
+	ToggleModified:   key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "toggle modified")),
+	ToggleUnmodified: key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "toggle unmodified")),
 }
