@@ -14,7 +14,7 @@ func RenderHeader(width int) string {
 	showSize, showUid, showPerm := getColumnVisibility(width)
 
 	// Header style (muted to not distract)
-	headerColor := styles.DarkGrayColor
+	headerColor := styles.BorderColor
 
 	// Create cell styles
 	sizeHeaderCell := lipgloss.NewStyle().Width(SizeWidth).Align(lipgloss.Right).Foreground(headerColor)

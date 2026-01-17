@@ -144,7 +144,7 @@ func (r *StatsPartRenderer) neutralStyle() lipgloss.Style {
 
 // activeStyle returns the style for active state
 func (r *StatsPartRenderer) activeStyle() lipgloss.Style {
-	var bgColor lipgloss.Color
+	var bgColor lipgloss.TerminalColor // Use TerminalColor to support both Color and CompleteAdaptiveColor
 	switch r.partType {
 	case StatsPartAdded:
 		bgColor = styles.SuccessColor

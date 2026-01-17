@@ -82,9 +82,9 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 	}
 
 	// Background
-	bg := lipgloss.Color("")
+	var bg lipgloss.TerminalColor = lipgloss.Color("") // Default empty color (transparent)
 	if isSelected {
-		bg = styles.SelectionBgColor
+		bg = styles.SelectionBgColor // CompleteAdaptiveColor
 	}
 
 	// Prefix & Icon Styles
@@ -194,7 +194,8 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 }
 
 // highlightMatches applies regex highlighting to matching portions of the text
-func highlightMatches(text string, filter *regexp.Regexp, baseColor lipgloss.Color, isSelected bool, bg lipgloss.Color) string {
+// baseColor and bg can be lipgloss.Color or lipgloss.CompleteAdaptiveColor (both implement TerminalColor)
+func highlightMatches(text string, filter *regexp.Regexp, baseColor lipgloss.TerminalColor, isSelected bool, bg lipgloss.TerminalColor) string {
 	// Find all matches
 	matches := filter.FindAllStringIndex(text, -1)
 	if len(matches) == 0 {

@@ -44,7 +44,7 @@ var LayerHeaderStyle = lipgloss.NewStyle().
 
 // LayerValueStyle for layer field values
 var LayerValueStyle = lipgloss.NewStyle().
-		Foreground(LightGray)
+		Foreground(MutedTextColor) // Changed from LightGray to adaptive MutedTextColor
 
 // FileTreeDirStyle for directories in file tree
 var FileTreeDirStyle = lipgloss.NewStyle().
@@ -138,15 +138,15 @@ func TruncateString(s string, maxLen int) string {
 
 // TreeGuideStyle for tree guide lines (│ ├ └)
 var TreeGuideStyle = lipgloss.NewStyle().
-	Foreground(DarkGray)
+	Foreground(BorderColor) // Changed from DarkGray to adaptive BorderColor
 
 // MetaDataStyle for permissions, UID, and size (muted, less prominent)
 var MetaDataStyle = lipgloss.NewStyle().
 	Foreground(MutedTextColor)
 
-// HelpStyle for help/instruction bar at the bottom (gray, muted)
+// HelpStyle for help/instruction bar at the bottom (muted)
 var HelpStyle = lipgloss.NewStyle().
-	Foreground(Gray)
+	Foreground(MutedTextColor) // Changed from Gray to adaptive MutedTextColor
 
 // --- 5. SEARCH BAR STYLES ---
 

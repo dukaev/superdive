@@ -104,7 +104,7 @@ func (d TreeDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 	// Metadata block (fixed width)
 	metaColor := styles.MutedTextColor
-	metaBg := lipgloss.Color("")
+	var metaBg lipgloss.TerminalColor = lipgloss.Color("")
 	if isSelected {
 		metaBg = styles.SelectionBgColor
 	}
