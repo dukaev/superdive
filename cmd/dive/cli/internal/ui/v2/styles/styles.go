@@ -5,37 +5,37 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-// --- Base Styles ---
+// --- 1. BASE STYLES ---
 
 var (
 	// TitleStyle for main titles
 	TitleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(PrimaryColor).
-			Background(lipgloss.Color("#1C1C1E")).
+			Background(PanelBgColor).
 			Padding(0, 1)
 
 	// StatusStyle for status bar
 	StatusStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#FFFFFF")).
+			Foreground(MainTextColor).
 			Background(SecondaryColor).
 			Padding(0, 1)
 
 	// FilterStyle for filter input
 	FilterStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFFFFF")).
-			Background(DarkGrayColor).
+			Foreground(MainTextColor).
+			Background(InputBgColor).
 			Padding(0, 1)
 )
 
-// --- Component Styles ---
+// --- 2. COMPONENT STYLES ---
 
 // SelectedLayerStyle highlights the currently selected layer
 var SelectedLayerStyle = lipgloss.NewStyle().
 		Bold(true).
 		Foreground(PrimaryColor).
-		Background(lipgloss.Color("#1C1C1E"))
+		Background(PanelBgColor)
 
 // LayerHeaderStyle for layer field headers
 var LayerHeaderStyle = lipgloss.NewStyle().
@@ -44,7 +44,7 @@ var LayerHeaderStyle = lipgloss.NewStyle().
 
 // LayerValueStyle for layer field values
 var LayerValueStyle = lipgloss.NewStyle().
-		Foreground(LightGrayColor)
+		Foreground(LightGray)
 
 // FileTreeDirStyle for directories in file tree
 var FileTreeDirStyle = lipgloss.NewStyle().
@@ -134,37 +134,37 @@ func TruncateString(s string, maxLen int) string {
 	return runewidth.Truncate(s, maxLen, "...")
 }
 
-// --- File Tree Visual Styles ---
+// --- 4. FILE TREE VISUAL STYLES ---
 
 // TreeGuideStyle for tree guide lines (│ ├ └)
 var TreeGuideStyle = lipgloss.NewStyle().
-	Foreground(DarkGrayColor)
+	Foreground(DarkGray)
 
 // MetaDataStyle for permissions, UID, and size (muted, less prominent)
 var MetaDataStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("#6e6e73"))
+	Foreground(MutedTextColor)
 
 // HelpStyle for help/instruction bar at the bottom (gray, muted)
 var HelpStyle = lipgloss.NewStyle().
-	Foreground(GrayColor)
+	Foreground(Gray)
 
-// --- Search Bar Styles ---
+// --- 5. SEARCH BAR STYLES ---
 
 // SearchPrefixStyle for the "Filter:" prefix in search bar
 var SearchPrefixStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("#1C1C1E")). // Dark text
-	Background(PrimaryColor).              // Accent background (blue)
+	Foreground(PanelBgColor).  // Dark text
+	Background(PrimaryColor).  // Accent background (blue)
 	Bold(true).
 	Padding(0, 1)
 
 // SearchInputStyle for the search input text (blue like the prefix)
 var SearchInputStyle = lipgloss.NewStyle().
-	Foreground(PrimaryColor).              // Blue text (accent color)
-	Background(lipgloss.Color("#3A3A3C")). // Dark gray status bar background
+	Foreground(PrimaryColor).   // Blue text (accent color)
+	Background(StatusBarBgColor). // Dark gray status bar background
 	Padding(0, 1)
 
 // SearchErrorStyle for invalid regex indication
 var SearchErrorStyle = lipgloss.NewStyle().
-	Foreground(ErrorColor). // Red text on error
-	Background(lipgloss.Color("#3A3A3C")).
+	Foreground(ErrorColor).    // Red text on error
+	Background(StatusBarBgColor).
 	Padding(0, 1)

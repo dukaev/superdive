@@ -159,7 +159,7 @@ func (r *StatsPartRenderer) activeStyle() lipgloss.Style {
 	// FIX: Removed Padding(0, 1) to prevent text shifting
 	// The background color is enough indication of state
 	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
+		Foreground(styles.MainTextColor).
 		Background(bgColor).
 		Bold(true)
 }

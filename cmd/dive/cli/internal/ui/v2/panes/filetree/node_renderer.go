@@ -84,17 +84,17 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 	// Background
 	bg := lipgloss.Color("")
 	if isSelected {
-		bg = lipgloss.Color("#48484A")
+		bg = styles.SelectionBgColor
 	}
 
 	// Prefix & Icon Styles
-	prefixStyle := lipgloss.NewStyle().Foreground(styles.DarkGrayColor).Background(bg)
+	prefixStyle := lipgloss.NewStyle().Foreground(styles.DarkGray).Background(bg)
 	styledPrefix := prefixStyle.Render(prefix)
 	iconStyle := lipgloss.NewStyle().Background(bg)
 	styledIcon := iconStyle.Render(icon)
 
 	// --- Build Meta Block Dynamically ---
-	metaColor := lipgloss.Color("#6e6e73")
+	metaColor := styles.MutedTextColor
 	gapStyle := lipgloss.NewStyle().Width(len(MetaGap)).Background(bg)
 
 	var metaCells []string
@@ -210,10 +210,10 @@ func highlightMatches(text string, filter *regexp.Regexp, baseColor lipgloss.Col
 	var result strings.Builder
 	lastEnd := 0
 
-	// Highlight color: bright yellow for visibility
-	highlightColor := lipgloss.Color("#FFFF00") // Bright yellow
+	// Highlight color: use centralized colors
+	highlightColor := styles.HighlightColor
 	if isSelected {
-		highlightColor = lipgloss.Color("#FFD700") // Gold for selected state
+		highlightColor = styles.SelectionHighlightColor
 	}
 
 	normalStyle := lipgloss.NewStyle().Foreground(baseColor).Background(bg)

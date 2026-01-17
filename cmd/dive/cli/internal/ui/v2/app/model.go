@@ -510,7 +510,7 @@ func (m Model) View() string {
 		if m.totalMatches > 0 {
 			if m.currentMatch >= 0 && m.currentMatch < m.totalMatches {
 				matchCounter = lipgloss.NewStyle().
-					Foreground(lipgloss.Color("#6e6e73")).
+					Foreground(styles.MutedTextColor).
 					Render(fmt.Sprintf(" [%d/%d]", m.currentMatch+1, m.totalMatches))
 			}
 		}

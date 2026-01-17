@@ -18,8 +18,11 @@ func imax(a, b int) int {
 // RenderHeader creates a column header row for the layers panel
 // The header shows: [#] ID Size A M D Digest Command
 func RenderHeader(width int, wA, wM, wD int) string {
-	// Determine column visibility based on width
-	showCommand, showDigest, showStats := getColumnVisibility(width)
+	// FIX: Calculate inner width first (viewport width without panel borders)
+	viewportWidth := width - 2
+
+	// FIX: Use viewportWidth for visibility check to match generateContent logic
+	showCommand, showDigest, showStats := GetColumnVisibility(viewportWidth)
 
 	// Step 1: Build header text WITHOUT colors (same as data rows)
 	prefix := "#"
@@ -87,7 +90,6 @@ func RenderHeader(width int, wA, wM, wD int) string {
 
 	// Step 2: Pad header to full width to match data rows
 	// This ensures header fills the entire available width
-	viewportWidth := width - 2 // Account for panel borders
 	textWidth := len(text) // Simple len since text is plain ASCII
 	padding := viewportWidth - textWidth
 	if padding > 0 {

@@ -39,26 +39,30 @@ const (
 	ColPadding     = 1
 	// Calculation: Prefix(5) + ID(4) + Pad(1) + Size(9) + Pad(1)
 	StatsStartOffset = ColWidthPrefix + ColWidthID + ColPadding + ColWidthSize + ColPadding
-	// Minimum width for columns (used for dynamic hiding)
-	MinWidthPrefix = ColWidthPrefix
-	MinWidthID     = ColWidthID
-	MinWidthSize   = ColWidthSize
-	MinWidthDigest = 6 // Current digest width
-	MinWidthStats  = 3 // Minimum: "0 0 0"
+	// Minimum width for columns (based on header text length)
+	MinWidthPrefix   = ColWidthPrefix
+	MinWidthID       = ColWidthID
+	MinWidthSize     = ColWidthSize
+	MinWidthDigest   = 6 // "Digest" (6 chars)
+	MinWidthStats    = 5 // "A M D" (5 chars) - fixed from 3
+	MinWidthCommand  = 7 // "Command" (7 chars) - new constant
 )
 
-// getColumnVisibility determines which columns should be shown based on width
+// GetColumnVisibility determines which columns should be shown based on width
 // Priority for hiding (first to hide): Command → Digest → Stats
 // Priority for keeping (never hide): ID → Size → Prefix
-func getColumnVisibility(width int) (showCommand, showDigest, showStats bool) {
-	// Calculate minimum space needed for each level
-	minWithoutCommand := MinWidthPrefix + MinWidthID + ColPadding + MinWidthSize + ColPadding + MinWidthDigest + ColPadding + MinWidthStats + ColPadding
-	minWithoutDigest := minWithoutCommand - MinWidthDigest - ColPadding
-	minWithoutStats := minWithoutDigest - MinWidthStats - ColPadding
+func GetColumnVisibility(width int) (showCommand, showDigest, showStats bool) {
+	// Base width: Prefix(5) + ID(4) + Size(7) + padding(2) = 18
+	baseWidth := MinWidthPrefix + MinWidthID + ColPadding + MinWidthSize + ColPadding
 
-	showCommand = width >= minWithoutCommand
-	showDigest = width >= minWithoutDigest
-	showStats = width >= minWithoutStats
+	// Thresholds for showing columns (include header width)
+	minWithStats := baseWidth + MinWidthStats + ColPadding         // 18 + 5 + 1 = 24
+	minWithDigest := minWithStats + MinWidthDigest + ColPadding    // 24 + 6 + 1 = 31
+	minWithCommand := minWithDigest + MinWidthCommand + ColPadding // 31 + 7 + 1 = 39
+
+	showStats = width >= minWithStats
+	showDigest = width >= minWithDigest
+	showCommand = width >= minWithCommand
 
 	return showCommand, showDigest, showStats
 }
@@ -386,7 +390,7 @@ func (m *Pane) generateContent() string {
 	width := m.width - 2 // Viewport width (without panel borders)
 
 	// Determine column visibility based on width
-	showCommand, showDigest, showStats := getColumnVisibility(width)
+	showCommand, showDigest, showStats := GetColumnVisibility(width)
 
 	var fullContent strings.Builder
 
@@ -448,16 +452,38 @@ func (m *Pane) generateContent() string {
 			}
 		}
 
-		// Format command
+		// Format command with dynamic truncation based on available width
 		cmd := ""
 		if showCommand {
 			// Clean command from newlines
 			rawCmd := strings.ReplaceAll(layer.Command, "\n", " ")
 			rawCmd = strings.TrimSpace(rawCmd)
-			// Truncate command to 20 chars
+
+			// Calculate available space for command
+			// Base columns: Prefix(5) + ID(4) + Size(7) + padding(2) = 18
+			usedWidth := ColWidthPrefix + ColWidthID + ColPadding + ColWidthSize + ColPadding
+
+			// Add stats width if visible
+			if showStats {
+				// statsStr contains formatted stats with spaces between them
+				usedWidth += runewidth.StringWidth(statsStr) + ColPadding
+			}
+
+			// Add digest width if visible
+			if showDigest && digest != "" {
+				usedWidth += 6 + ColPadding // Digest is always 6 chars
+			}
+
+			// Calculate remaining space for command
+			availableWidth := width - usedWidth
+			if availableWidth < 1 {
+				availableWidth = 1
+			}
+
+			// Truncate command to available width dynamically
 			cmd = rawCmd
-			if len(cmd) > 20 {
-				cmd = cmd[:20]
+			if runewidth.StringWidth(cmd) > availableWidth {
+				cmd = runewidth.Truncate(cmd, availableWidth, "")
 			}
 		}
 
@@ -504,7 +530,8 @@ func (m *Pane) generateContent() string {
 		// Pad to full width for selected layer to ensure background fills entire row
 		if i == m.layerIndex {
 			textWidth := runewidth.StringWidth(text)
-			padding := (width - 2) - textWidth
+			// FIX: width is already (m.width - 2), so don't subtract 2 again
+			padding := width - textWidth
 			if padding > 0 {
 				text += strings.Repeat(" ", padding)
 			}

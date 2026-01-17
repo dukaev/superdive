@@ -103,10 +103,10 @@ func (d TreeDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	}
 
 	// Metadata block (fixed width)
-	metaColor := lipgloss.Color("#6e6e73")
+	metaColor := styles.MutedTextColor
 	metaBg := lipgloss.Color("")
 	if isSelected {
-		metaBg = lipgloss.Color("#1C1C1E") // Dark background for selected row
+		metaBg = styles.SelectionBgColor
 	}
 
 	// Create cell styles (code similar to old RenderNodeWithCursor)
@@ -121,7 +121,7 @@ func (d TreeDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	// Left part (tree + name)
 	styledPrefix := styles.TreeGuideStyle.Render(item.prefix)
 	if isSelected {
-		styledPrefix = lipgloss.NewStyle().Foreground(styles.DarkGrayColor).Background(metaBg).Render(item.prefix)
+		styledPrefix = lipgloss.NewStyle().Foreground(styles.DarkGray).Background(metaBg).Render(item.prefix)
 	}
 
 	// FIX: Use lipgloss.Width for styled strings (ignores ANSI codes)
@@ -150,7 +150,7 @@ func (d TreeDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 	// Apply background to diffIcon and icon if selected
 	if isSelected {
-		bg := lipgloss.Color("#1C1C1E")
+		bg := styles.SelectionBgColor
 		if diffIcon != "" {
 			diffIcon = lipgloss.NewStyle().Background(bg).Render(diffIcon)
 		}
