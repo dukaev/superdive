@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
@@ -32,26 +32,27 @@ type FocusStateMsg struct {
 
 // Define layout constants to ensure click detection matches rendering
 const (
-	ColWidthPrefix = 7  // "[1/n] " format (max 6 chars + space)
-	ColWidthID     = 12
-	ColWidthSize   = 9
+	ColWidthPrefix = 5 // "1/n " format (max 5 chars + space)
+	ColWidthID     = 4 // Short ID (first 4 chars of blob)
+	ColWidthSize   = 7
 	ColWidthDigest = 13 // "sha256:abc12" format (12 chars + space)
 	ColPadding     = 1
-	// Calculation: Prefix(7) + ID(12) + Pad(1) + Size(9) + Pad(1)
+	// Calculation: Prefix(5) + ID(4) + Pad(1) + Size(9) + Pad(1)
 	StatsStartOffset = ColWidthPrefix + ColWidthID + ColPadding + ColWidthSize + ColPadding
 )
 
 // Pane manages the layers list
 type Pane struct {
-	focused          bool // Set by parent via FocusStateMsg, not by Focus()/Blur() methods
-	width            int
-	height           int
-	layerVM          *viewmodel.LayerSetState
-	comparer         *filetree.Comparer // For computing layer comparison trees
-	viewport         viewport.Model
-	layerIndex       int
-	statsRows        []components.FileStatsRow // Stats row for each layer
-	statsCache       []domain.FileStats         // Cached statistics for each layer (calculated once)
+	focused    bool // Set by parent via FocusStateMsg, not by Focus()/Blur() methods
+	width      int
+	height     int
+	layerVM    *viewmodel.LayerSetState
+	comparer   *filetree.Comparer // For computing layer comparison trees
+	viewport   viewport.Model
+	layerIndex int
+	statsRows  []components.FileStatsRow // Stats row for each layer
+	statsCache []domain.FileStats        // Cached statistics for each layer (calculated once)
+	statsWidths [3]int                  // [0]=AddedWidth, [1]=ModifiedWidth, [2]=RemovedWidth
 }
 
 // New creates a new layers pane
@@ -94,6 +95,9 @@ func (m *Pane) precalculateStats() {
 	// Pre-allocate cache for all layers
 	m.statsCache = make([]domain.FileStats, len(m.layerVM.Layers))
 
+	// Initialize with minimum width (1 for header "A", "M", "D")
+	maxA, maxM, maxD := 1, 1, 1
+
 	// Calculate stats for each layer
 	for i, layer := range m.layerVM.Layers {
 		var treeToCompare *filetree.FileTree
@@ -122,8 +126,27 @@ func (m *Pane) precalculateStats() {
 		}
 
 		// Calculate stats ONCE per layer (heavy tree traversal)
-		m.statsCache[i] = domain.CalculateFileStats(treeToCompare)
+		stats := domain.CalculateFileStats(treeToCompare)
+		m.statsCache[i] = stats
+
+		// Calculate the string width of each stat value
+		lenA := len(utils.FormatCount(stats.Added))
+		lenM := len(utils.FormatCount(stats.Modified))
+		lenD := len(utils.FormatCount(stats.Removed))
+
+		if lenA > maxA {
+			maxA = lenA
+		}
+		if lenM > maxM {
+			maxM = lenM
+		}
+		if lenD > maxD {
+			maxD = lenD
+		}
 	}
+
+	// Store computed widths
+	m.statsWidths = [3]int{maxA, maxM, maxD}
 }
 
 // Resize updates the pane dimensions
@@ -250,8 +273,8 @@ func (m Pane) View() string {
 	// 1. Get content from viewport
 	content := m.viewport.View()
 
-	// 2. Add table header
-	header := RenderHeader(m.width)
+	// 2. Add table header with dynamic widths
+	header := RenderHeader(m.width, m.statsWidths[0], m.statsWidths[1], m.statsWidths[2])
 
 	// 3. Combine header and content
 	fullContent := lipgloss.JoinVertical(lipgloss.Left, header, content)
@@ -343,9 +366,9 @@ func (m *Pane) generateContent() string {
 	var fullContent strings.Builder
 
 	for i, layer := range m.layerVM.Layers {
-		// Format: [current/total]
+		// Format: current/total (without brackets)
 		totalLayers := len(m.layerVM.Layers)
-		prefix := fmt.Sprintf("[%d/%d] ", i+1, totalLayers)
+		prefix := fmt.Sprintf("%d/%d ", i+1, totalLayers)
 		style := lipgloss.NewStyle()
 
 		if i == m.layerIndex {
@@ -370,6 +393,9 @@ func (m *Pane) generateContent() string {
 			stats := m.statsCache[i]
 			m.statsRows[i].SetStats(stats)
 
+			// Set dynamic widths for stats columns
+			m.statsRows[i].SetWidths(m.statsWidths[0], m.statsWidths[1], m.statsWidths[2])
+
 			// Use plain rendering for selected layer to allow background highlight
 			// Colors would interfere with the row background color
 			if i == m.layerIndex {
@@ -382,24 +408,28 @@ func (m *Pane) generateContent() string {
 		// Clean command from newlines
 		rawCmd := strings.ReplaceAll(layer.Command, "\n", " ")
 		rawCmd = strings.TrimSpace(rawCmd)
-
-		// Truncate command to fixed width (15 chars + "...")
-		const maxCmdWidth = 15
-		cmd := ""
-		if rawCmd != "" {
-			cmd = runewidth.Truncate(rawCmd, maxCmdWidth, "...")
+		// Truncate command to 20 chars
+		cmd := rawCmd
+		if len(cmd) > 20 {
+			cmd = cmd[:20]
 		}
 
-		// Format digest (short version: first 12 chars after "sha256:")
+		// Format digest (short version: 6 chars)
 		digest := ""
+		const digestWidth = 6
 		if layer.Digest != "" {
-			// Remove "sha256:" prefix if present and take first 12 chars
+			// Remove "sha256:" prefix if present and take first 6 chars
 			shortDigest := strings.TrimPrefix(layer.Digest, "sha256:")
-			if len(shortDigest) > 12 {
-				shortDigest = shortDigest[:12]
+			if len(shortDigest) > digestWidth {
+				shortDigest = shortDigest[:digestWidth]
 			}
-			// Add gray color styling for digest
-			digest = styles.MetaDataStyle.Render(shortDigest)
+			// For selected layer, use plain text to allow background highlight
+			// For normal layers, add gray color styling
+			if i == m.layerIndex {
+				digest = shortDigest
+			} else {
+				digest = styles.MetaDataStyle.Render(shortDigest)
+			}
 		}
 
 		// Build the line using strict column widths
@@ -410,9 +440,9 @@ func (m *Pane) generateContent() string {
 		// " "   = Padding
 		// %s    = Stats
 		// " "   = Padding
-		// %s    = Command
-		// " "   = Padding before digest
 		// %s    = Digest (gray color)
+		// " "   = Padding
+		// %s    = Command
 		var text string
 		if digest != "" {
 			text = fmt.Sprintf("%-*s%-*s %*s %s %s %s",
@@ -420,8 +450,8 @@ func (m *Pane) generateContent() string {
 				ColWidthID, id,
 				ColWidthSize, size,
 				statsStr,
-				cmd,
 				digest,
+				cmd,
 			)
 		} else {
 			text = fmt.Sprintf("%-*s%-*s %*s %s %s",

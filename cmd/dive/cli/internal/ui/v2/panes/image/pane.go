@@ -110,7 +110,7 @@ func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 			m.viewport.LineDown(1)
 		}
 
-	case tea.MouseMsg:
+	case common.LocalMouseMsg:
 		if msg.Action == tea.MouseActionPress {
 			if msg.Button == tea.MouseButtonWheelUp {
 				m.viewport.LineUp(1)

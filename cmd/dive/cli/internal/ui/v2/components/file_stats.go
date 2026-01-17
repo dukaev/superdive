@@ -31,6 +31,7 @@ type StatsPartRenderer struct {
 	partType StatsPartType
 	value    int
 	active   bool
+	width    int // Dynamic width for this column
 }
 
 // NewStatsPartRenderer creates a new stats part renderer
@@ -39,6 +40,7 @@ func NewStatsPartRenderer(partType StatsPartType, value int) StatsPartRenderer {
 		partType: partType,
 		value:    value,
 		active:   false,
+		width:    StatsColWidth, // Default width
 	}
 }
 
@@ -65,6 +67,11 @@ func (r *StatsPartRenderer) IsActive() bool {
 // ToggleActive toggles the active state
 func (r *StatsPartRenderer) ToggleActive() {
 	r.active = !r.active
+}
+
+// SetWidth sets the width for this column
+func (r *StatsPartRenderer) SetWidth(width int) {
+	r.width = width
 }
 
 // GetType returns the type of this stats part
@@ -107,10 +114,10 @@ func (r *StatsPartRenderer) formatText() string {
 	return utils.FormatCount(r.value)
 }
 
-// alignText right-aligns text to StatsColWidth by padding with spaces on the left
+// alignText right-aligns text to r.width by padding with spaces on the left
 func (r *StatsPartRenderer) alignText(text string) string {
-	if len(text) < StatsColWidth {
-		return strings.Repeat(" ", StatsColWidth-len(text)) + text
+	if len(text) < r.width {
+		return strings.Repeat(" ", r.width-len(text)) + text
 	}
 	return text
 }
@@ -157,9 +164,9 @@ func (r *StatsPartRenderer) activeStyle() lipgloss.Style {
 		Bold(true)
 }
 
-// GetVisualWidth returns the fixed visual width of the rendered part
+// GetVisualWidth returns the visual width of the rendered part
 func (r *StatsPartRenderer) GetVisualWidth() int {
-	return StatsColWidth
+	return r.width
 }
 
 // FileStatsRow manages a row with three stats parts
@@ -228,6 +235,13 @@ func (r *FileStatsRow) DeactivateAll() {
 	r.added.SetActive(false)
 	r.modified.SetActive(false)
 	r.removed.SetActive(false)
+}
+
+// SetWidths sets the width for all three stats columns
+func (r *FileStatsRow) SetWidths(wA, wM, wD int) {
+	r.added.SetWidth(wA)
+	r.modified.SetWidth(wM)
+	r.removed.SetWidth(wD)
 }
 
 // Render renders the complete stats row as a string

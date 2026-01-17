@@ -53,15 +53,15 @@
 │Layer Details               │
 │                            │
 │Tags: (unavailable)         │
-│Id:                         │
-│28cfe03618aa2e914e81fdd90345│
-│245c15f4478e35252c06ca52d238│
-│fd3cc694                    │
+│Id: 28cfe03618aa2e914e81fdd9│
 │Size: 1.1M                  │
 │Digest: sha256:23bc2b70b2...│
 │Command:                    │
 │#(nop) ADD                  │
-│...e3492c4dfb17148bd in...  │
+│file:ce026b62356eec3ad1214  │
+│f92be2c9dc063fe205bd5e600b  │
+│e3492c4dfb17148bd in /      │
+│                            │
 │                            │
 ╰────────────────────────────╯
 ---
@@ -113,9 +113,7 @@
 │Layer Details                                   │
 │                                                │
 │Tags: (unavailable)                             │
-│Id:                                             │
-│28cfe03618aa2e914e81fdd90345245c15f4478e35252c06│
-│ca52d238fd3cc694                                │
+│Id: 28cfe03618aa2e914e81fdd90345245c15f4478e3525│
 │Size: 1.1M                                      │
 │Digest: sha256:23bc2b70b2014dec0ac22f27bb93e9...│
 ╰────────────────────────────────────────────────╯

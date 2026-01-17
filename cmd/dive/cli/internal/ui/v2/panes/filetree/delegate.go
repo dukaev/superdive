@@ -136,7 +136,7 @@ func (d TreeDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 	displayName := name
 	if runewidth.StringWidth(name) > availableForName && availableForName > 0 {
-		displayName = runewidth.Truncate(name, availableForName, "…")
+		displayName = smartTruncatePath(name, availableForName)
 	}
 
 	styledName := nameStyle.Background(metaBg).Render(displayName)

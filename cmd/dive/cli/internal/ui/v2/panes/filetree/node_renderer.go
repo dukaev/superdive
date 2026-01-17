@@ -148,7 +148,7 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 	if filterRegex != nil && filterRegex.MatchString(name) {
 		// Highlight matching portions
 		if runewidth.StringWidth(name) > availableForName {
-			truncatedName = runewidth.Truncate(name, availableForName, "…")
+			truncatedName = smartTruncatePath(name, availableForName)
 		}
 		// Note: Highlight matching on truncated string is tricky, simplified here:
 		if filterRegex.MatchString(truncatedName) {
@@ -163,7 +163,7 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 		}
 	} else {
 		if runewidth.StringWidth(name) > availableForName {
-			truncatedName = runewidth.Truncate(name, availableForName, "…")
+			truncatedName = smartTruncatePath(name, availableForName)
 		}
 		nameStyle := lipgloss.NewStyle().Foreground(color).Background(bg)
 		if isSelected {
@@ -256,4 +256,67 @@ func RenderNodeLine(node *filetree.FileNode, prefix string, isSelected bool, wid
 // This is used for flat view where the full path is shown instead of just the name.
 func RenderNodeLineWithDisplayName(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int, filterRegex *regexp.Regexp) string {
 	return RenderRow(node, prefix, displayName, isSelected, width, filterRegex)
+}
+
+// smartTruncatePath сокращает путь, отдавая приоритет имени файла.
+// Пример: "/very/long/path/to/file.txt" -> "…/path/to/file.txt"
+func smartTruncatePath(path string, width int) string {
+	if runewidth.StringWidth(path) <= width {
+		return path
+	}
+
+	// 1. Пытаемся разделить на директорию и файл
+	lastSlash := strings.LastIndex(path, "/")
+	if lastSlash == -1 {
+		// Если слэшей нет, это просто длинное имя файла.
+		// Используем стандартное обрезание
+		return runewidth.Truncate(path, width, "…")
+	}
+
+	dir := path[:lastSlash]
+	name := path[lastSlash+1:]
+	nameWidth := runewidth.StringWidth(name)
+
+	// 2. Если имя файла + "/" занимает почти всю ширину (осталось < 5 символов для директории)
+	// то просто обрезаем весь путь стандартным способом
+	if nameWidth+1 > width-5 {
+		return runewidth.Truncate(path, width, "…")
+	}
+
+	// 3. Имя файла влезает, вычисляем место для директории
+	// Нужно место под name + 1 символ слэша
+	availableForDir := width - nameWidth - 1
+
+	if availableForDir < 3 {
+		// Совсем нет места под директорию
+		return "…/" + name
+	}
+
+	// 4. Если dir влезает целиком, возвращаем как есть
+	if runewidth.StringWidth(dir) <= availableForDir {
+		return dir + "/" + name
+	}
+
+	// 5. Иначе обрезаем начало директории, оставляя "…" в начале
+	// Берём руну за руной с конца, пока не наберём нужную ширину
+	dirRunes := []rune(dir)
+	var truncatedRunes []rune
+	currentWidth := 1 // Ширина "…"
+
+	// Идём с конца директории
+	for i := len(dirRunes) - 1; i >= 0; i-- {
+		r := dirRunes[i]
+		rWidth := runewidth.RuneWidth(r)
+
+		if currentWidth+rWidth > availableForDir {
+			break
+		}
+
+		currentWidth += rWidth
+		truncatedRunes = append([]rune{r}, truncatedRunes...)
+	}
+
+	truncatedDir := "…" + string(truncatedRunes)
+
+	return truncatedDir + "/" + name
 }

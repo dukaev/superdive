@@ -6,9 +6,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
+	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/app/layout"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
@@ -22,17 +24,20 @@ type FocusStateMsg struct {
 
 // Pane displays information about a single layer
 type Pane struct {
-	focused bool // Set by parent via FocusStateMsg, not by Focus()/Blur() methods
-	width   int
-	height  int
-	layer   *image.Layer
+	focused  bool // Set by parent via FocusStateMsg, not by Focus()/Blur() methods
+	width    int
+	height   int
+	layer    *image.Layer
+	viewport viewport.Model
 }
 
 // New creates a new details pane
 func New() Pane {
+	vp := viewport.New(80, 10)
 	return Pane{
-		width:  80,
-		height: 10,
+		width:    80,
+		height:   10,
+		viewport: vp,
 	}
 }
 
@@ -40,11 +45,33 @@ func New() Pane {
 func (m *Pane) Resize(width, height int) {
 	m.width = width
 	m.height = height
+
+	// Calculate available height for the viewport content
+	// Layout Padding: 2 (Top Border) + 2 (Bottom Border/Title gap) = 4
+	viewportWidth := width - 2
+	viewportHeight := height - layout.BoxContentPadding
+	if viewportHeight < 0 {
+		viewportHeight = 0
+	}
+
+	m.viewport.Width = viewportWidth
+	m.viewport.Height = viewportHeight
+
+	// Regenerate content with new width
+	m.updateContent()
 }
 
 // SetLayer updates the layer to display
 func (m *Pane) SetLayer(layer *image.Layer) {
 	m.layer = layer
+	m.updateContent()
+}
+
+// updateContent regenerates the viewport content
+func (m *Pane) updateContent() {
+	content := m.generateContent()
+	m.viewport.SetContent(content)
+	m.viewport.GotoTop()
 }
 
 // Init initializes the pane
@@ -75,25 +102,32 @@ func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 		// Parent controls focus state - use SetFocused method
 		m.SetFocused(msg.Focused)
 		return m, nil
+
+	case common.LocalMouseMsg:
+		// Handle mouse wheel for scrolling
+		if msg.Action == tea.MouseActionPress {
+			if msg.Button == tea.MouseButtonWheelUp {
+				m.viewport.ScrollUp(1)
+			} else if msg.Button == tea.MouseButtonWheelDown {
+				m.viewport.ScrollDown(1)
+			}
+		}
 	}
-	// Details pane doesn't handle any other messages - it's read-only
-	return m, nil
+
+	// Update viewport
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
 }
 
 // View renders the pane
 func (m Pane) View() string {
-	content := m.renderContent()
+	content := m.viewport.View()
 	return styles.RenderBox("Layer Details", m.width, m.height, content, m.focused)
 }
 
-// renderContent generates the details content
-func (m Pane) renderContent() string {
-	// Calculate available space: Height - Borders(2) - Header(2)
-	maxLines := m.height - 4
-	if maxLines < 0 {
-		maxLines = 0
-	}
-
+// generateContent generates the full details content without truncation
+func (m Pane) generateContent() string {
 	if m.layer == nil {
 		return "No details"
 	}
@@ -101,33 +135,18 @@ func (m Pane) renderContent() string {
 	layer := m.layer
 	var lines []string
 
-	// Helper: add line only if space available
-	addLine := func(s string) bool {
-		if len(lines) < maxLines {
-			lines = append(lines, s)
-			return true
-		}
-		return false
-	}
-
 	// Tags
 	if len(layer.Names) > 0 {
 		tags := strings.Join(layer.Names, ", ")
 		if lipgloss.Width(tags) > m.width-8 {
 			tags = runewidth.Truncate(tags, m.width-8, "...")
 		}
-		if !addLine(styles.LayerHeaderStyle.Render(fmt.Sprintf("Tags: %s", tags))) {
-			goto finish
-		}
+		lines = append(lines, styles.LayerHeaderStyle.Render(fmt.Sprintf("Tags: %s", tags)))
 	}
 
 	// ID & Size
-	if !addLine(styles.LayerValueStyle.Render(fmt.Sprintf("Id: %s", layer.Id))) {
-		goto finish
-	}
-	if !addLine(styles.LayerValueStyle.Render(fmt.Sprintf("Size: %s", utils.FormatSize(layer.Size)))) {
-		goto finish
-	}
+	lines = append(lines, styles.LayerValueStyle.Render(fmt.Sprintf("Id: %s", layer.Id)))
+	lines = append(lines, styles.LayerValueStyle.Render(fmt.Sprintf("Size: %s", utils.FormatSize(layer.Size))))
 
 	// Digest
 	if layer.Digest != "" {
@@ -140,54 +159,29 @@ func (m Pane) renderContent() string {
 		if lipgloss.Width(digest) > maxDigestWidth {
 			digest = runewidth.Truncate(digest, maxDigestWidth, "...")
 		}
-		if !addLine(styles.LayerValueStyle.Render(fmt.Sprintf("Digest: %s", digest))) {
-			goto finish
-		}
+		lines = append(lines, styles.LayerValueStyle.Render(fmt.Sprintf("Digest: %s", digest)))
 	}
 
-	// Command - Maximum 2 lines!
-	if !addLine(styles.LayerHeaderStyle.Render("Command:")) {
-		goto finish
-	}
+	// Command
+	lines = append(lines, styles.LayerHeaderStyle.Render("Command:"))
 
 	if layer.Command == "" {
-		addLine(styles.LayerValueStyle.Render("(unavailable)"))
+		lines = append(lines, styles.LayerValueStyle.Render("(unavailable)"))
 	} else {
 		maxWidth := m.width - 4
 		if maxWidth < 10 {
 			maxWidth = 10
 		}
 
-		// Wrap command to fit width
+		// Wrap command to fit width - show ALL lines
 		wrappedCmd := lipgloss.NewStyle().Width(maxWidth).Render(layer.Command)
 		cmdLines := strings.Split(wrappedCmd, "\n")
 
-		// Show max 2 lines: first line + last line (with "..." prefix if long)
-		if len(cmdLines) == 1 {
-			// Short command - fits in 1 line
-			addLine(styles.LayerValueStyle.Render(cmdLines[0]))
-		} else if len(cmdLines) == 2 {
-			// Exactly 2 lines - show both
-			addLine(styles.LayerValueStyle.Render(cmdLines[0]))
-			addLine(styles.LayerValueStyle.Render(cmdLines[1]))
-		} else {
-			// Long command (>2 lines) - show first and last
-			addLine(styles.LayerValueStyle.Render(cmdLines[0]))
-
-			// Last line with "..." prefix
-			lastLine := cmdLines[len(cmdLines)-1]
-			secondLine := "..." + lastLine
-
-			// Truncate if still too long
-			if lipgloss.Width(secondLine) > maxWidth {
-				secondLine = runewidth.Truncate(secondLine, maxWidth, "...")
-			}
-
-			addLine(styles.LayerValueStyle.Render(secondLine))
+		for _, cmdLine := range cmdLines {
+			lines = append(lines, styles.LayerValueStyle.Render(cmdLine))
 		}
 	}
 
-finish:
 	return strings.Join(lines, "\n")
 }
 
