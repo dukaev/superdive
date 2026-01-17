@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/domain"
@@ -20,6 +21,10 @@ const (
 	StatsPartModified
 	StatsPartRemoved
 )
+
+// StatsColWidth is the fixed width for each stats column
+// 4 chars fits: "999", "1.5k", "100k", "1.5M", "100M"
+const StatsColWidth = 4
 
 // StatsPartRenderer handles rendering a single part of file statistics with interactive state
 type StatsPartRenderer struct {
@@ -67,23 +72,12 @@ func (r *StatsPartRenderer) GetType() StatsPartType {
 	return r.partType
 }
 
-// Render renders the stats part as a string
+// Render renders the stats part as a string with alignment
 func (r *StatsPartRenderer) Render() string {
-	var prefix string
-	// Only show prefix for non-zero values
-	if r.value != 0 {
-		switch r.partType {
-		case StatsPartAdded:
-			prefix = "+"
-		case StatsPartModified:
-			prefix = "~"
-		case StatsPartRemoved:
-			prefix = "-"
-		}
-	}
+	text := r.formatText()
 
-	// Format value with k/M suffixes to fit in 4 chars max (e.g., "+100k")
-	text := fmt.Sprintf("%s%s", prefix, utils.FormatCount(r.value))
+	// Right-align by padding with spaces on the left
+	text = r.alignText(text)
 
 	if r.active {
 		return r.activeStyle().Render(text)
@@ -97,23 +91,27 @@ func (r *StatsPartRenderer) Render() string {
 	return r.defaultStyle().Render(text)
 }
 
-// RenderPlain renders the stats part without any colors (for row highlight)
+// RenderPlain renders the stats part without any colors (for row highlight) with alignment
 func (r *StatsPartRenderer) RenderPlain() string {
-	var prefix string
-	// Only show prefix for non-zero values
-	if r.value != 0 {
-		switch r.partType {
-		case StatsPartAdded:
-			prefix = "+"
-		case StatsPartModified:
-			prefix = "~"
-		case StatsPartRemoved:
-			prefix = "-"
-		}
-	}
+	text := r.formatText()
 
-	// Format value with k/M suffixes to fit in 4 chars max (e.g., "+100k")
-	text := fmt.Sprintf("%s%s", prefix, utils.FormatCount(r.value))
+	// Right-align by padding with spaces on the left
+	text = r.alignText(text)
+
+	return text
+}
+
+// formatText formats the base text (value only, no prefix)
+func (r *StatsPartRenderer) formatText() string {
+	// Format value with k/M suffixes (max 4 chars)
+	return utils.FormatCount(r.value)
+}
+
+// alignText right-aligns text to StatsColWidth by padding with spaces on the left
+func (r *StatsPartRenderer) alignText(text string) string {
+	if len(text) < StatsColWidth {
+		return strings.Repeat(" ", StatsColWidth-len(text)) + text
+	}
 	return text
 }
 
@@ -159,13 +157,9 @@ func (r *StatsPartRenderer) activeStyle() lipgloss.Style {
 		Bold(true)
 }
 
-// GetVisualWidth returns the visual width of the rendered part (without ANSI codes)
-// Always returns 5: 1 char prefix (+/~/-) + up to 4 chars for formatted value
+// GetVisualWidth returns the fixed visual width of the rendered part
 func (r *StatsPartRenderer) GetVisualWidth() int {
-	// Format: "+N" or "~N" or "-N" where N is formatted with k/M suffix
-	// Max width: 1 (prefix) + 4 (value) = 5
-	// Examples: "+999", "+1.2k", "+100k", "+1.5M"
-	return 5
+	return StatsColWidth
 }
 
 // FileStatsRow manages a row with three stats parts

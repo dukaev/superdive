@@ -21,25 +21,27 @@ func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix s
 	sb.WriteString("\n")
 }
 
-// RenderRow renders a single tree node row using lipgloss.JoinHorizontal for clean layout
+// RenderRow renders a single tree node row with DYNAMIC column hiding
 // displayName is optional - if empty, node.Name will be used
 // filterRegex is optional - if provided, matching text will be highlighted
 func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int, filterRegex *regexp.Regexp) string {
-	// 1. Icon and color
+	// 1. Determine visibility based on width
+	showSize, showUid, showPerm := getColumnVisibility(width)
+
+	// --- Standard Rendering Logic (Icon, Color, etc) ---
 	icon := styles.IconFile
 	color := styles.DiffNormalColor
-
 	if node.Data.FileInfo.IsDir() {
 		if node.Data.ViewInfo.Collapsed {
 			icon = styles.IconDirClosed
 		} else {
 			icon = styles.IconDirOpen
 		}
-	} else if node.Data.FileInfo.TypeFlag == 16 { // Symlink
+	} else if node.Data.FileInfo.TypeFlag == 16 {
 		icon = styles.IconSymlink
 	}
 
-	// 2. Diff status color
+	// Diff status color
 	switch node.Data.DiffType {
 	case filetree.Added:
 		color = styles.DiffAddedColor
@@ -49,22 +51,25 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 		color = styles.DiffModifiedColor
 	}
 
-	// 3. Format metadata (fixed width, right-aligned)
-	perm := FormatPermissions(node.Data.FileInfo.Mode)
+	// --- Metadata Formatting ---
+	var sizeStr, uidGid, perm string
 
-	var uidGid string
-	if node.Data.FileInfo.Uid != 0 || node.Data.FileInfo.Gid != 0 {
-		uidGid = FormatUidGid(node.Data.FileInfo.Uid, node.Data.FileInfo.Gid)
-	} else {
-		uidGid = "-"
-	}
-
-	var sizeStr string
-	if !node.Data.FileInfo.IsDir() {
+	// Only compute strings if they will be shown (optimization)
+	if showSize && !node.Data.FileInfo.IsDir() {
 		sizeStr = utils.FormatSize(uint64(node.Data.FileInfo.Size))
 	}
+	if showUid {
+		if node.Data.FileInfo.Uid != 0 || node.Data.FileInfo.Gid != 0 {
+			uidGid = FormatUidGid(node.Data.FileInfo.Uid, node.Data.FileInfo.Gid)
+		} else {
+			uidGid = "-"
+		}
+	}
+	if showPerm {
+		perm = FormatPermissions(node.Data.FileInfo.Mode)
+	}
 
-	// Format name with symlink target
+	// Name resolution
 	name := displayName
 	if name == "" {
 		name = node.Name
@@ -76,98 +81,100 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 		name += " → " + node.Data.FileInfo.Linkname
 	}
 
-	// 4. Common background for selected state
-	// IMPROVED: Better contrast with lighter background
+	// Background
 	bg := lipgloss.Color("")
 	if isSelected {
-		bg = lipgloss.Color("#48484A") // Lighter gray for better contrast
+		bg = lipgloss.Color("#48484A")
 	}
 
-	// 5. Build styled components
-	// Tree guides (prefix)
+	// Prefix & Icon Styles
 	prefixStyle := lipgloss.NewStyle().Foreground(styles.DarkGrayColor).Background(bg)
 	styledPrefix := prefixStyle.Render(prefix)
-
-	// Icon
 	iconStyle := lipgloss.NewStyle().Background(bg)
 	styledIcon := iconStyle.Render(icon)
 
-	// Filename with diff color
-	// Apply match highlighting if filter is provided
-	var finalStyledName string
-	if filterRegex != nil && filterRegex.MatchString(name) {
-		// Highlight matching portions
-		finalStyledName = highlightMatches(name, filterRegex, color, isSelected, bg)
-	} else {
-		// No highlighting, use normal style
-		nameStyle := lipgloss.NewStyle().Foreground(color).Background(bg)
-		if isSelected {
-			nameStyle = nameStyle.Bold(true).Foreground(styles.PrimaryColor)
-		}
-		finalStyledName = nameStyle.Render(name)
+	// --- Build Meta Block Dynamically ---
+	metaColor := lipgloss.Color("#6e6e73")
+	gapStyle := lipgloss.NewStyle().Width(len(MetaGap)).Background(bg)
+
+	var metaCells []string
+
+	// 1. Size (Priority 3 - Last to hide)
+	if showSize {
+		sizeCell := lipgloss.NewStyle().Width(SizeWidth).Align(lipgloss.Right).Foreground(metaColor).Background(bg).Render(sizeStr)
+		metaCells = append(metaCells, sizeCell)
 	}
 
-	// 6. Render metadata cells (fixed width)
-	metaColor := lipgloss.Color("#6e6e73")
+	// 2. UID:GID (Priority 2)
+	if showUid {
+		if len(metaCells) > 0 {
+			metaCells = append(metaCells, gapStyle.Render(MetaGap))
+		}
+		uidGidCell := lipgloss.NewStyle().Width(UidGidWidth).Align(lipgloss.Right).Foreground(metaColor).Background(bg).Render(uidGid)
+		metaCells = append(metaCells, uidGidCell)
+	}
 
-	sizeCell := lipgloss.NewStyle().
-		Width(SizeWidth).
-		Align(lipgloss.Right).
-		Foreground(metaColor).
-		Background(bg).
-		Render(sizeStr)
+	// 3. Permissions (Priority 1 - First to hide)
+	if showPerm {
+		if len(metaCells) > 0 {
+			metaCells = append(metaCells, gapStyle.Render(MetaGap))
+		}
+		permCell := lipgloss.NewStyle().Width(PermWidth).Align(lipgloss.Right).Foreground(metaColor).Background(bg).Render(perm)
+		metaCells = append(metaCells, permCell)
+	}
 
-	uidGidCell := lipgloss.NewStyle().
-		Width(UidGidWidth).
-		Align(lipgloss.Right).
-		Foreground(metaColor).
-		Background(bg).
-		Render(uidGid)
-
-	permCell := lipgloss.NewStyle().
-		Width(PermWidth).
-		Align(lipgloss.Right).
-		Foreground(metaColor).
-		Background(bg).
-		Render(perm)
-
-	gap := lipgloss.NewStyle().Width(len(MetaGap)).Background(bg).Render(MetaGap)
-
-	// Metadata block (right-aligned columns)
-	metaBlock := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		sizeCell, gap, uidGidCell, gap, permCell,
-	)
-
-	// 7. Calculate available width for filename
-	fixedPartWidth := lipgloss.Width(styledPrefix) + lipgloss.Width(styledIcon)
+	// Join meta block
+	metaBlock := lipgloss.JoinHorizontal(lipgloss.Top, metaCells...)
 	metaBlockWidth := lipgloss.Width(metaBlock)
 
-	availableForName := width - fixedPartWidth - metaBlockWidth - 2 // -2 for spacing
+	// --- Name Rendering & Truncation ---
+
+	// Calculate available width for name
+	fixedPartWidth := lipgloss.Width(styledPrefix) + lipgloss.Width(styledIcon)
+
+	// -2 for spacing/padding
+	availableForName := width - fixedPartWidth - metaBlockWidth - 2
+
+	// Absolute minimum safety
 	if availableForName < 5 {
 		availableForName = 5
 	}
 
-	// Truncate name if needed (check visual width, not character count)
+	// Truncate name logic
+	var finalStyledName string
 	truncatedName := name
-	if runewidth.StringWidth(finalStyledName) > availableForName {
-		// If highlighting makes it too long, truncate without highlighting
+
+	// Render name with highlight or normal style
+	if filterRegex != nil && filterRegex.MatchString(name) {
+		// Highlight matching portions
 		if runewidth.StringWidth(name) > availableForName {
 			truncatedName = runewidth.Truncate(name, availableForName, "…")
 		}
-		// Re-apply highlighting to truncated name
-		if filterRegex != nil && filterRegex.MatchString(truncatedName) {
+		// Note: Highlight matching on truncated string is tricky, simplified here:
+		if filterRegex.MatchString(truncatedName) {
 			finalStyledName = highlightMatches(truncatedName, filterRegex, color, isSelected, bg)
 		} else {
+			// Fallback if truncation cut off the match
 			nameStyle := lipgloss.NewStyle().Foreground(color).Background(bg)
 			if isSelected {
 				nameStyle = nameStyle.Bold(true).Foreground(styles.PrimaryColor)
 			}
 			finalStyledName = nameStyle.Render(truncatedName)
 		}
+	} else {
+		if runewidth.StringWidth(name) > availableForName {
+			truncatedName = runewidth.Truncate(name, availableForName, "…")
+		}
+		nameStyle := lipgloss.NewStyle().Foreground(color).Background(bg)
+		if isSelected {
+			nameStyle = nameStyle.Bold(true).Foreground(styles.PrimaryColor)
+		}
+		finalStyledName = nameStyle.Render(truncatedName)
 	}
 
-	// 8. Calculate flexible padding to push metadata to right edge
+	// --- Final Assembly ---
+
+	// Calculate flexible padding
 	contentWidth := fixedPartWidth + lipgloss.Width(finalStyledName) + metaBlockWidth
 	paddingNeeded := width - contentWidth
 	if paddingNeeded < 1 {
@@ -176,7 +183,6 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 
 	padding := lipgloss.NewStyle().Width(paddingNeeded).Background(bg).Render(strings.Repeat(" ", paddingNeeded))
 
-	// 9. Join all components horizontally
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		styledPrefix,

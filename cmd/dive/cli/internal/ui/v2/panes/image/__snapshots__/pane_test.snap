@@ -27,15 +27,15 @@
 │Image Details                                                                 │
 │                                                                              │
 │Image name: /Users/aslan/Documents/oss/dive/.data/test-docker-image.tar       │
-│Total Image size: 1.2 MB                                                      │
-│Potential wasted space: 31.3 KB                                               │
+│Total Image size: 1.2M                                                        │
+│Potential wasted space: 31k                                                   │
 │Image efficiency score: 98%                                                   │
 │Files > 0 KB total: 5                                                         │
 │                                                                              │
 │Count Total Space  Path                                                       │
-│2     6.3 KB       /root/example/somefile3.txt                                │
-│2     12.5 KB      /root/example/somefile1.txt                                │
-│2     12.5 KB      /root/saved.txt                                            │
+│2     6.3k         /root/example/somefile3.txt                                │
+│2     13k          /root/example/somefile1.txt                                │
+│2     13k          /root/saved.txt                                            │
 │                                                                              │
 │                                                                              │
 │                                                                              │
@@ -50,15 +50,15 @@
 │Image Details                                                                 │
 │                                                                              │
 │Image name: /Users/aslan/Documents/oss/dive/.data/test-docker-image.tar       │
-│Total Image size: 1.2 MB                                                      │
-│Potential wasted space: 31.3 KB                                               │
+│Total Image size: 1.2M                                                        │
+│Potential wasted space: 31k                                                   │
 │Image efficiency score: 98%                                                   │
 │Files > 0 KB total: 5                                                         │
 │                                                                              │
 │Count Total Space  Path                                                       │
-│2     6.3 KB       /root/example/somefile3.txt                                │
-│2     12.5 KB      /root/example/somefile1.txt                                │
-│2     12.5 KB      /root/saved.txt                                            │
+│2     6.3k         /root/example/somefile3.txt                                │
+│2     13k          /root/example/somefile1.txt                                │
+│2     13k          /root/saved.txt                                            │
 │                                                                              │
 │                                                                              │
 │                                                                              │
@@ -73,15 +73,15 @@
 │Image Details                         │
 │                                      │
 │Image name: /Users/aslan/Documents/oss│
-│Total Image size: 1.2 MB              │
-│Potential wasted space: 31.3 KB       │
+│Total Image size: 1.2M                │
+│Potential wasted space: 31k           │
 │Image efficiency score: 98%           │
 │Files > 0 KB total: 5                 │
 │                                      │
 │Count Total Space  Path               │
-│2     6.3 KB       /root/example/so...│
-│2     12.5 KB      /root/example/so...│
-│2     12.5 KB      /root/saved.txt    │
+│2     6.3k         /root/example/so...│
+│2     13k          /root/example/so...│
+│2     13k          /root/saved.txt    │
 │                                      │
 │                                      │
 │                                      │
@@ -96,8 +96,8 @@
 │Image Details                                                                 │
 │                                                                              │
 │Image name: /Users/aslan/Documents/oss/dive/.data/test-docker-image.tar       │
-│Total Image size: 1.2 MB                                                      │
-│Potential wasted space: 31.3 KB                                               │
+│Total Image size: 1.2M                                                        │
+│Potential wasted space: 31k                                                   │
 │Image efficiency score: 98%                                                   │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ---
@@ -107,15 +107,15 @@
 │Image Details                                                                                                         │
 │                                                                                                                      │
 │Image name: /Users/aslan/Documents/oss/dive/.data/test-docker-image.tar                                               │
-│Total Image size: 1.2 MB                                                                                              │
-│Potential wasted space: 31.3 KB                                                                                       │
+│Total Image size: 1.2M                                                                                                │
+│Potential wasted space: 31k                                                                                           │
 │Image efficiency score: 98%                                                                                           │
 │Files > 0 KB total: 5                                                                                                 │
 │                                                                                                                      │
 │Count Total Space  Path                                                                                               │
-│2     6.3 KB       /root/example/somefile3.txt                                                                        │
-│2     12.5 KB      /root/example/somefile1.txt                                                                        │
-│2     12.5 KB      /root/saved.txt                                                                                    │
+│2     6.3k         /root/example/somefile3.txt                                                                        │
+│2     13k          /root/example/somefile1.txt                                                                        │
+│2     13k          /root/saved.txt                                                                                    │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
@@ -150,12 +150,12 @@
 │Image Details                                   │
 │                                                │
 │Image name: /Users/aslan/Documents/oss/dive/.dat│
-│Total Image size: 1.2 MB                        │
-│Potential wasted space: 31.3 KB                 │
+│Total Image size: 1.2M                          │
+│Potential wasted space: 31k                     │
 │Image efficiency score: 98%                     │
 │Files > 0 KB total: 5                           │
 │                                                │
 │Count Total Space  Path                         │
-│2     6.3 KB       /root/example/somefile3.txt  │
+│2     6.3k         /root/example/somefile3.txt  │
 ╰────────────────────────────────────────────────╯
 ---

@@ -41,7 +41,10 @@ the amount of wasted space and identifies the offending files from the image.`,
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			// Check for --ui2 flag
+			// Check for UI version flags
+			if ui1, _ := cmd.Flags().GetBool("ui1"); ui1 {
+				opts.UI.Version = "v1"
+			}
 			if ui2, _ := cmd.Flags().GetBool("ui2"); ui2 {
 				opts.UI.Version = "v2"
 			}
@@ -66,8 +69,9 @@ the amount of wasted space and identifies the offending files from the image.`,
 		},
 	}, opts)
 
-	// Add --ui2 flag
-	cmd.Flags().Bool("ui2", false, "Use the new V2 UI (experimental)")
+	// Add UI version flags
+	cmd.Flags().Bool("ui1", false, "Use the legacy V1 UI")
+	cmd.Flags().Bool("ui2", false, "Use the new V2 UI (default)")
 
 	return cmd
 }
@@ -80,13 +84,13 @@ func setUI(app clio.Application, opts options.Application) error {
 	state := app.(Stater).State()
 
 	// Choose UI version based on configuration
-	if opts.UIVersion() == "v2" {
-		ux := v2ui.NewV2UI(opts.V1Preferences(), os.Stdout, state.Config.Log.Quiet, state.Config.Log.Verbosity)
+	if opts.UIVersion() == "v1" {
+		ux := ui.NewV1UI(opts.V1Preferences(), os.Stdout, state.Config.Log.Quiet, state.Config.Log.Verbosity)
 		return state.UI.Replace(ux)
 	}
 
-	// Default to V1
-	ux := ui.NewV1UI(opts.V1Preferences(), os.Stdout, state.Config.Log.Quiet, state.Config.Log.Verbosity)
+	// Default to V2
+	ux := v2ui.NewV2UI(opts.V1Preferences(), os.Stdout, state.Config.Log.Quiet, state.Config.Log.Verbosity)
 	return state.UI.Replace(ux)
 }
 

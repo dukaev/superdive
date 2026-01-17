@@ -9,9 +9,35 @@ import (
 const (
 	PermWidth   = 11 // "-rwxr-xr-x"
 	UidGidWidth = 9  // "0:0" or "1000:1000"
-	SizeWidth   = 8  // right-aligned size
+	SizeWidth   = 4  // compact size: "999", "1.5k", "10k", "1.5M"
 	MetaGap     = "  "
+
+	// MinNameWidth defines the minimum space we want to reserve for the filename
+	// before starting to hide metadata columns.
+	MinNameWidth = 25
 )
+
+// getColumnVisibility returns flags for (size, uid, perm) visibility based on panel width.
+// Hiding priority: Permissions -> UID:GID -> Size (last to hide).
+func getColumnVisibility(width int) (showSize, showUid, showPerm bool) {
+	// Calculate required width for each combination
+	// Size + gap + UID + gap + Perm
+	widthFull := SizeWidth + len(MetaGap) + UidGidWidth + len(MetaGap) + PermWidth
+	// Size + gap + UID (no Perm)
+	widthNoPerm := SizeWidth + len(MetaGap) + UidGidWidth
+	// Size only
+	widthSizeOnly := SizeWidth
+
+	// Available space for metadata = Total width - Min name width - Borders/padding (~2)
+	availableForMeta := width - MinNameWidth - 2
+
+	// Determine which columns fit
+	showSize = availableForMeta >= widthSizeOnly
+	showUid = availableForMeta >= widthNoPerm
+	showPerm = availableForMeta >= widthFull
+
+	return showSize, showUid, showPerm
+}
 
 // FormatPermissions converts os.FileMode to Unix permission string (e.g. "-rwxr-xr-x")
 func FormatPermissions(mode interface{}) string {

@@ -161,11 +161,8 @@ func TestPane_ShortHelp(t *testing.T) {
 
 	pane := New(layerVM, testData.Comparer)
 
-	// Test that ShortHelp returns the Space key binding
+	// Test that ShortHelp returns empty list (no special keys for Layers pane)
 	keys := pane.ShortHelp()
 	require.NotNil(t, keys)
-	require.Len(t, keys, 1)
-
-	// Verify the key is Space (for showing layer detail modal)
-	require.Equal(t, "space", keys[0].Help().Key)
+	require.Len(t, keys, 0)
 }

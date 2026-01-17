@@ -15,21 +15,14 @@ import (
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/common"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/components"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/domain"
-	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/keys"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
 	"github.com/wagoodman/dive/dive/filetree"
-	"github.com/wagoodman/dive/dive/image"
 )
 
 // LayerChangedMsg is sent when the active layer changes
 type LayerChangedMsg struct {
 	LayerIndex int
-}
-
-// ShowLayerDetailMsg is sent to show the layer detail modal
-type ShowLayerDetailMsg struct {
-	Layer *image.Layer
 }
 
 // FocusStateMsg is sent by parent to tell the pane whether it's focused or not
@@ -138,8 +131,13 @@ func (m *Pane) Resize(width, height int) {
 	m.width = width
 	m.height = height
 
+	// Calculate available height for the viewport content
+	// Layout Padding: 2 (Top Border) + 2 (Bottom Border/Title gap) = 4
+	// Header visual height: 1
+	// Total: 4 (BoxContentPadding) + 1 (visualHeaderHeight) = 5
+	const visualHeaderHeight = 1
 	viewportWidth := width - 2
-	viewportHeight := height - layout.BoxContentPadding
+	viewportHeight := height - layout.BoxContentPadding - visualHeaderHeight
 	if viewportHeight < 0 {
 		viewportHeight = 0
 	}
@@ -208,13 +206,6 @@ func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 			cmds = append(cmds, m.moveUp())
 		case "down", "j", "]":
 			cmds = append(cmds, m.moveDown())
-		case " ":
-			// Show layer detail modal
-			if m.layerVM != nil && m.layerIndex >= 0 && m.layerIndex < len(m.layerVM.Layers) {
-				cmds = append(cmds, func() tea.Msg {
-					return ShowLayerDetailMsg{Layer: m.layerVM.Layers[m.layerIndex]}
-				})
-			}
 		}
 
 	case common.LocalMouseMsg:
@@ -222,9 +213,9 @@ func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 		// We need to subtract visual offsets to get content coordinates
 		if msg.Action == tea.MouseActionPress {
 			// Content offsets relative to the panel:
-			// Y: 1 (top border) + 1 (box title) + 1 (space padding) = 3
+			// Y: 1 (top border) + 1 (box title) + 1 (header) + 1 (space padding) = 4
 			// X: 1 (left border)
-			const contentOffsetY = 3
+			const contentOffsetY = 4
 			const contentOffsetX = 1
 
 			if msg.Button == tea.MouseButtonWheelUp {
@@ -256,8 +247,16 @@ func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 
 // View renders the pane
 func (m Pane) View() string {
+	// 1. Get content from viewport
 	content := m.viewport.View()
-	return styles.RenderBox("Layers", m.width, m.height, content, m.focused)
+
+	// 2. Add table header
+	header := RenderHeader(m.width)
+
+	// 3. Combine header and content
+	fullContent := lipgloss.JoinVertical(lipgloss.Left, header, content)
+
+	return styles.RenderBox("Layers", m.width, m.height, fullContent, m.focused)
 }
 
 // moveUp moves selection up
@@ -461,9 +460,6 @@ func (m *Pane) GetViewport() *viewport.Model {
 }
 
 // ShortHelp returns key bindings specific to the layers pane.
-// Layers pane has navigation keys and a special Space key to show layer details.
 func (m *Pane) ShortHelp() []key.Binding {
-	return []key.Binding{
-		keys.Keys.Space,  // Show layer detail modal
-	}
+	return []key.Binding{}
 }

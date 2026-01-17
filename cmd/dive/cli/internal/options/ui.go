@@ -11,7 +11,7 @@ type UI struct {
 
 func DefaultUI() UI {
 	return UI{
-		Version:    "v1",
+		Version:    "v2",
 		Keybinding: DefaultUIKeybinding(),
 		Diff:       DefaultUIDiff(),
 		Filetree:   DefaultUIFiletree(),

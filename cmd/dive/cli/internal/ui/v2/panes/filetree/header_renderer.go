@@ -8,50 +8,56 @@ import (
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 )
 
-// RenderHeader creates a column header row with FIXED WIDTH columns
+// RenderHeader creates a column header row with DYNAMIC columns
 func RenderHeader(width int) string {
+	// 1. Determine which columns to show
+	showSize, showUid, showPerm := getColumnVisibility(width)
+
 	// Header style (muted to not distract)
 	headerColor := styles.DarkGrayColor
 
-	// Create cell styles with FIXED WIDTH (same as renderer.go!)
-	sizeHeaderCell := lipgloss.NewStyle().
-		Width(SizeWidth).
-		Align(lipgloss.Right).
-		Foreground(headerColor)
+	// Create cell styles
+	sizeHeaderCell := lipgloss.NewStyle().Width(SizeWidth).Align(lipgloss.Right).Foreground(headerColor)
+	uidGidHeaderCell := lipgloss.NewStyle().Width(UidGidWidth).Align(lipgloss.Right).Foreground(headerColor)
+	permHeaderCell := lipgloss.NewStyle().Width(PermWidth).Align(lipgloss.Right).Foreground(headerColor)
+	gapStyle := lipgloss.NewStyle().Width(len(MetaGap))
 
-	uidGidHeaderCell := lipgloss.NewStyle().
-		Width(UidGidWidth).
-		Align(lipgloss.Right).
-		Foreground(headerColor)
+	// 2. Build metadata cells dynamically
+	var metaCells []string
 
-	permHeaderCell := lipgloss.NewStyle().
-		Width(PermWidth).
-		Align(lipgloss.Right).
-		Foreground(headerColor)
+	if showSize {
+		metaCells = append(metaCells, sizeHeaderCell.Render("Size"))
+	}
+	if showUid {
+		// Add gap before UID if Size is also shown
+		if len(metaCells) > 0 {
+			metaCells = append(metaCells, gapStyle.Render(MetaGap))
+		}
+		metaCells = append(metaCells, uidGidHeaderCell.Render("UID:GID"))
+	}
+	if showPerm {
+		// Add gap before Permissions
+		if len(metaCells) > 0 {
+			metaCells = append(metaCells, gapStyle.Render(MetaGap))
+		}
+		metaCells = append(metaCells, permHeaderCell.Render("Permissions"))
+	}
 
-	// Render each header cell with fixed width
-	styledSizeHeader := sizeHeaderCell.Render("Size")
-	styledUidGidHeader := uidGidHeaderCell.Render("UID:GID")
-	styledPermHeader := permHeaderCell.Render("Permissions")
+	// If all hidden, just render "Name" header
+	if len(metaCells) == 0 {
+		return lipgloss.NewStyle().Foreground(headerColor).Render("Name")
+	}
 
-	// Join cells horizontally with gap (same as renderer.go!)
-	metaBlock := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		styledSizeHeader,
-		lipgloss.NewStyle().Width(len(MetaGap)).Render(MetaGap),
-		styledUidGidHeader,
-		lipgloss.NewStyle().Width(len(MetaGap)).Render(MetaGap),
-		styledPermHeader,
-	)
+	// Join cells horizontally
+	metaBlock := lipgloss.JoinHorizontal(lipgloss.Top, metaCells...)
 
 	// CRITICAL: Must match viewport width (width - 2)!
-	// Viewport is created with width-2, so header must use the same width
 	availableWidth := width - 2
 	if availableWidth < 10 {
 		availableWidth = 10
 	}
 
-	// Left part: "Name" label (with muted color like other headers)
+	// Left part: "Name" label
 	nameHeaderStyle := lipgloss.NewStyle().Foreground(headerColor)
 	styledNameHeader := nameHeaderStyle.Render("Name")
 
@@ -66,6 +72,5 @@ func RenderHeader(width int) string {
 
 	// Assemble: Name + padding + right-aligned metadata
 	fullText := styledNameHeader + strings.Repeat(" ", padding) + metaBlock
-
 	return fullText
 }

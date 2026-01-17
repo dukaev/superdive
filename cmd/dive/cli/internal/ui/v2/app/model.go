@@ -104,9 +104,6 @@ type Model struct {
 	currentMatch  int             // Index of currently selected match (-1 if no match)
 	totalMatches  int             // Total number of matches
 
-	// Layer detail modal
-	layerDetailModal LayerDetailModal
-
 	// Help and key bindings
 	keys keys.KeyMap
 	help help.Model
@@ -152,8 +149,6 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 	ti.PromptStyle = styles.SearchPrefixStyle
 	ti.SetValue("")
 
-	layerDetailModal := NewLayerDetailModal()
-
 	// Create pane components
 	layersPane := layers.New(layerVM, comparer)
 	detailsPane := details.New()
@@ -185,7 +180,6 @@ func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Pre
 		totalMatches:     0,
 		keys:             keys.Keys,
 		help:             h,
-		layerDetailModal: layerDetailModal,
 	}
 
 	// CRITICAL: Calculate initial layout immediately
@@ -262,14 +256,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// If layer detail modal is visible, let it handle keys first
-		if m.layerDetailModal.IsVisible() {
-			var cmd tea.Cmd
-			m.layerDetailModal, cmd = m.layerDetailModal.Update(msg)
-			cmds = append(cmds, cmd)
-			break
-		}
-
 		// If searching is active, handle search mode
 		if m.searching {
 			return m.updateSearch(msg)
@@ -340,10 +326,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// POLYMORPHISM: Send message through interface, no type assertion
 		newPane, _ := m.panes[PaneTree].Update(filetreepane.UpdateViewModelMsg{TreeVM: m.treeVM})
 		m.panes[PaneTree] = newPane
-
-	case layers.ShowLayerDetailMsg:
-		// Show layer detail modal
-		m.layerDetailModal.Show(msg.Layer)
 
 	case tea.MouseMsg:
 		// BUBBLEZONE: Check which pane was clicked using zone hit testing
@@ -568,12 +550,6 @@ func (m Model) View() string {
 	//
 	// Solution: Build the final view in a variable, then always scan it.
 	finalView := base
-
-	// Overlay layer detail modal if visible
-	if m.layerDetailModal.IsVisible() {
-		modalView := m.layerDetailModal.View(m.width, m.height)
-		finalView = lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modalView)
-	}
 
 	// BUBBLEZONE: Scan the entire output to register zones for hit testing
 	// CRITICAL: This must be called ONCE on the FINAL rendered string, regardless of modals

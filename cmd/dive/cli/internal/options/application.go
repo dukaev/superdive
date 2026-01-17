@@ -32,8 +32,8 @@ func (c Application) V1Preferences() v1.Preferences {
 }
 
 func (c Application) UIVersion() string {
-	if c.UI.Version == "v2" {
-		return "v2"
+	if c.UI.Version == "v1" {
+		return "v1"
 	}
-	return "v1" // default
+	return "v2" // default
 }
