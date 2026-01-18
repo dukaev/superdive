@@ -1,3 +1,4 @@
+// Package layout provides layout calculation utilities for the UI
 package layout
 
 // Layout constants for viewport calculations

@@ -29,9 +29,13 @@ import (
 type Pane int
 
 const (
+	// PaneLayer is the layers pane
 	PaneLayer Pane = iota
+	// PaneDetails is the details pane
 	PaneDetails
+	// PaneImage is the image pane
 	PaneImage
+	// PaneTree is the tree pane
 	PaneTree
 )
 
@@ -110,7 +114,7 @@ type Model struct {
 }
 
 // NewModel creates a new bubbletea model with configuration
-func NewModel(analysis image.Analysis, content image.ContentReader, prefs v1.Preferences, ctx context.Context) Model {
+func NewModel(ctx context.Context, analysis image.Analysis, content image.ContentReader, prefs v1.Preferences) Model {
 	// Initialize layer viewmodel
 	var layerVM *viewmodel.LayerSetState
 	if len(analysis.Layers) > 0 {
@@ -252,6 +256,7 @@ func (m *Model) recalculateLayout() {
 // Update implements tea.Model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
+	var handled bool // Track if message was already handled
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -277,6 +282,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, cmd)
 			}
 		}
+		handled = true
 
 		// Global key bindings
 		switch msg.String() {
@@ -316,6 +322,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.panes[PaneDetails] = newDetails
 		}
 		m.updateTreeForCurrentLayer()
+		handled = true
 
 	case filetreepane.NodeToggledMsg:
 		// Forward message to tree pane to refresh its visibleNodes cache
@@ -326,17 +333,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newPane, cmd := m.panes[PaneTree].Update(msg)
 		m.panes[PaneTree] = newPane
 		cmds = append(cmds, cmd)
+		handled = true
 
 	case filetreepane.RefreshTreeContentMsg:
 		// Request to refresh tree content
 		// POLYMORPHISM: Send message through interface, no type assertion
 		newPane, _ := m.panes[PaneTree].Update(filetreepane.UpdateViewModelMsg{TreeVM: m.treeVM})
 		m.panes[PaneTree] = newPane
+		handled = true
 
 	case tea.MouseMsg:
 		// BUBBLEZONE: Check which pane was clicked using zone hit testing
 		// This is more robust than manual coordinate calculations
-		for paneID, pane := range m.panes {
+		for paneID := range m.panes {
 			id := paneID.String() // "Layers", "Details", "Image", "Tree"
 
 			if zone.Get(id).InBounds(msg) {
@@ -362,8 +371,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						LocalY:   localY,
 					}
 
-					// POLYMORPHISM: Update through interface
-					newPane, cmd := pane.Update(localMsg)
+					// CRITICAL: Get CURRENT pane from map after sendFocusStates()
+					// The 'pane' variable from the loop is outdated (Focused=false)
+					// sendFocusStates() updated m.panes[paneID] with (Focused=true)
+					// Using the old copy would lose the focus state!
+					currentPane := m.panes[paneID]
+					newPane, cmd := currentPane.Update(localMsg)
 					m.panes[paneID] = newPane
 					cmds = append(cmds, cmd)
 				}
@@ -372,6 +385,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 		}
+		handled = true
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -399,6 +413,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			layoutCmds = append(layoutCmds, cmd)
 		}
 		cmds = append(cmds, layoutCmds...)
+		handled = true
+
+	default:
+		// Forward all OTHER messages (e.g., tickMsg from CopiableValue timers)
+		// to the active pane. This is critical for component internal timers to work.
+		// Without this, messages from child components are lost.
+		// IMPORTANT: Only forward if not already handled above to prevent double-processing
+		if !handled {
+			if activePane, ok := m.panes[m.activePane]; ok {
+				updatedPane, cmd := activePane.Update(msg)
+				m.panes[m.activePane] = updatedPane
+				cmds = append(cmds, cmd)
+			}
+		}
 	}
 
 	// Update help
@@ -487,7 +515,9 @@ func (m Model) View() string {
 
 	// Combine global and pane-specific keys
 	// IMPORTANT: Create new slice to avoid mutating global keys
-	allKeys := append(globalKeys, activePaneKeys...)
+	allKeys := make([]key.Binding, 0, len(globalKeys)+len(activePaneKeys))
+	allKeys = append(allKeys, globalKeys...)
+	allKeys = append(allKeys, activePaneKeys...)
 
 	// Render status bar: search input or help
 	var statusBar string
@@ -653,15 +683,15 @@ func (m *Model) findMatchIndices() []int {
 func (m Model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	keyMsg, ok := msg.(tea.KeyMsg)
+	if ok {
 		// IMPORTANT: Handle Ctrl+C first to allow quitting even in search mode
-		if msg.Type == tea.KeyCtrlC {
+		if keyMsg.Type == tea.KeyCtrlC {
 			m.quitting = true
 			return m, tea.Quit
 		}
 
-		switch msg.String() {
+		switch keyMsg.String() {
 		case "enter":
 			// Jump to first match and exit search mode
 			m.jumpToMatch(0)
@@ -696,7 +726,7 @@ func (m Model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// This allows navigating the filtered tree while still in search mode
 			// REMOVED: "j", "k" - they were blocking input (e.g., "json")
 			if treePane, ok := m.panes[PaneTree]; ok {
-				updatedPane, cmd := treePane.Update(msg)
+				updatedPane, cmd := treePane.Update(keyMsg)
 				m.panes[PaneTree] = updatedPane
 				cmds = append(cmds, cmd)
 			}
@@ -725,7 +755,7 @@ func (m Model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			// Regular text input - update search field and apply filter in real-time
 			var cmd tea.Cmd
-			m.searchInput, cmd = m.searchInput.Update(msg)
+			m.searchInput, cmd = m.searchInput.Update(keyMsg)
 
 			// Apply filter immediately (real-time filtering)
 			patternText := m.searchInput.Value()

@@ -17,7 +17,7 @@ type VisibleNode struct {
 
 // CollectVisibleNodes collects all visible nodes with tree guide prefixes
 func CollectVisibleNodes(root *filetree.FileNode) []VisibleNode {
-	var nodes []VisibleNode
+	nodes := make([]VisibleNode, 0, 100)
 
 	// levels tracks state for each nesting level:
 	// true = this level is the last child (use spaces)
@@ -88,7 +88,7 @@ func CollectVisibleNodes(root *filetree.FileNode) []VisibleNode {
 
 // CollectFlatNodes collects all nodes as a flat list sorted by path
 func CollectFlatNodes(root *filetree.FileNode) []VisibleNode {
-	var nodes []VisibleNode
+	nodes := make([]VisibleNode, 0, 100)
 
 	var traverse func(*filetree.FileNode)
 	traverse = func(node *filetree.FileNode) {
@@ -120,7 +120,7 @@ func CollectFlatNodes(root *filetree.FileNode) []VisibleNode {
 // This implements "Google-style" clean search: no parent directories shown
 // unless they themselves match the search pattern
 func CollectSearchResults(root *filetree.FileNode, filter *regexp.Regexp) []VisibleNode {
-	var nodes []VisibleNode
+	nodes := make([]VisibleNode, 0, 100)
 
 	var traverse func(*filetree.FileNode)
 	traverse = func(node *filetree.FileNode) {
@@ -183,7 +183,9 @@ func SortChildren(children map[string]*filetree.FileNode) []*filetree.FileNode {
 	})
 
 	// Combine: directories first, then files
-	result := append(dirs, files...)
+	result := make([]*filetree.FileNode, 0, len(dirs)+len(files))
+	result = append(result, dirs...)
+	result = append(result, files...)
 	return result
 }
 

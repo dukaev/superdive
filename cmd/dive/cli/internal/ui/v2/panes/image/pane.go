@@ -1,3 +1,4 @@
+// Package image provides the image details pane
 package image
 
 import (
@@ -83,7 +84,7 @@ func (m *Pane) SetFocused(focused bool) {
 
 // Update handles messages
 func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
-	var cmds []tea.Cmd
+	cmds := make([]tea.Cmd, 0, 1)
 
 	switch msg := msg.(type) {
 	case common.LayoutMsg:
@@ -112,9 +113,10 @@ func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 
 	case common.LocalMouseMsg:
 		if msg.Action == tea.MouseActionPress {
-			if msg.Button == tea.MouseButtonWheelUp {
+			switch msg.Button {
+			case tea.MouseButtonWheelUp:
 				m.viewport.ScrollUp(1)
-			} else if msg.Button == tea.MouseButtonWheelDown {
+			case tea.MouseButtonWheelDown:
 				m.viewport.ScrollDown(1)
 			}
 		}
@@ -191,6 +193,6 @@ func (m *Pane) generateContent() string {
 
 // ShortHelp returns key bindings specific to the image pane.
 // Image pane is read-only, so it has no specific keys.
-func (p *Pane) ShortHelp() []key.Binding {
+func (m *Pane) ShortHelp() []key.Binding {
 	return nil
 }

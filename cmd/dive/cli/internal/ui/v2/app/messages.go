@@ -1,3 +1,4 @@
+// Package app provides the main application model and message types
 package app
 
 // Note: LocalMouseMsg is now defined in common package to avoid import cycles

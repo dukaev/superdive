@@ -22,6 +22,7 @@ import (
 
 var _ clio.UI = (*V2UI)(nil)
 
+// V2UI is the V2 UI implementation
 type V2UI struct {
 	cfg          v1.Preferences
 	out          *os.File
@@ -31,6 +32,7 @@ type V2UI struct {
 	verbosity    int
 }
 
+// NewV2UI creates a new V2UI instance
 func NewV2UI(cfg v1.Preferences, out *os.File, quiet bool, verbosity int) *V2UI {
 	return &V2UI{
 		cfg:       cfg,
@@ -41,6 +43,7 @@ func NewV2UI(cfg v1.Preferences, out *os.File, quiet bool, verbosity int) *V2UI 
 	}
 }
 
+// Setup sets up the UI with the given subscription
 func (n *V2UI) Setup(subscription partybus.Unsubscribable) error {
 	if n.verbosity == 0 || n.quiet {
 		log.Set(discard.New())
@@ -75,6 +78,7 @@ func (e environWithoutCI) Getenv(s string) string {
 	return os.Getenv(s)
 }
 
+// Handle handles the given event
 func (n *V2UI) Handle(e partybus.Event) error {
 	switch e.Type {
 	case event.TaskStarted:
@@ -116,7 +120,7 @@ func (n *V2UI) runApp(ctx context.Context, analysis image.Analysis, content imag
 	zone.NewGlobal()
 
 	// Create bubbletea program with initial model
-	model := app.NewModel(analysis, content, n.cfg, ctx)
+	model := app.NewModel(ctx, analysis, content, n.cfg)
 
 	p := tea.NewProgram(
 		model,
@@ -131,6 +135,7 @@ func (n *V2UI) runApp(ctx context.Context, analysis image.Analysis, content imag
 	return nil
 }
 
+// Teardown tears down the UI
 func (n *V2UI) Teardown(_ bool) error {
 	return nil
 }

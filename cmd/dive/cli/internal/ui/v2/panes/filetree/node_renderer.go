@@ -26,7 +26,7 @@ func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix s
 // filterRegex is optional - if provided, matching text will be highlighted
 func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int, filterRegex *regexp.Regexp) string {
 	// 1. Determine visibility based on width
-	showSize, showUid, showPerm := getColumnVisibility(width)
+	showSize, showUID, showPerm := getColumnVisibility(width)
 
 	// --- Standard Rendering Logic (Icon, Color, etc) ---
 	icon := styles.IconFile
@@ -56,11 +56,14 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 
 	// Only compute strings if they will be shown (optimization)
 	if showSize && !node.Data.FileInfo.IsDir() {
-		sizeStr = utils.FormatSize(uint64(node.Data.FileInfo.Size))
+		size := node.Data.FileInfo.Size
+		if size >= 0 {
+			sizeStr = utils.FormatSize(uint64(size))
+		}
 	}
-	if showUid {
+	if showUID {
 		if node.Data.FileInfo.Uid != 0 || node.Data.FileInfo.Gid != 0 {
-			uidGid = FormatUidGid(node.Data.FileInfo.Uid, node.Data.FileInfo.Gid)
+			uidGid = FormatUIDGid(node.Data.FileInfo.Uid, node.Data.FileInfo.Gid)
 		} else {
 			uidGid = "-"
 		}
@@ -106,11 +109,11 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 	}
 
 	// 2. UID:GID (Priority 2)
-	if showUid {
+	if showUID {
 		if len(metaCells) > 0 {
 			metaCells = append(metaCells, gapStyle.Render(MetaGap))
 		}
-		uidGidCell := lipgloss.NewStyle().Width(UidGidWidth).Align(lipgloss.Right).Foreground(metaColor).Background(bg).Render(uidGid)
+		uidGidCell := lipgloss.NewStyle().Width(UIDGidWidth).Align(lipgloss.Right).Foreground(metaColor).Background(bg).Render(uidGid)
 		metaCells = append(metaCells, uidGidCell)
 	}
 

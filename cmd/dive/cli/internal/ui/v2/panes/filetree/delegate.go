@@ -19,18 +19,22 @@ type TreeDelegate struct {
 	// Can store shared styles here to avoid recreating them
 }
 
+// NewTreeDelegate creates a new tree delegate
 func NewTreeDelegate() TreeDelegate {
 	return TreeDelegate{}
 }
 
+// Height returns the height of each row
 func (d TreeDelegate) Height() int {
 	return 1
 }
 
+// Spacing returns the spacing between rows
 func (d TreeDelegate) Spacing() int {
 	return 0
 }
 
+// Update handles updates to the delegate
 func (d TreeDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd {
 	return nil
 }
@@ -74,12 +78,15 @@ func (d TreeDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	perm := FormatPermissions(node.Data.FileInfo.Mode)
 	uidGid := "-"
 	if node.Data.FileInfo.Uid != 0 || node.Data.FileInfo.Gid != 0 {
-		uidGid = FormatUidGid(node.Data.FileInfo.Uid, node.Data.FileInfo.Gid)
+		uidGid = FormatUIDGid(node.Data.FileInfo.Uid, node.Data.FileInfo.Gid)
 	}
 
 	var sizeStr string
 	if !node.Data.FileInfo.IsDir() {
-		sizeStr = utils.FormatSize(uint64(node.Data.FileInfo.Size))
+		size := node.Data.FileInfo.Size
+		if size >= 0 {
+			sizeStr = utils.FormatSize(uint64(size))
+		}
 	}
 
 	// 3. Style the name
@@ -111,7 +118,7 @@ func (d TreeDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 	// Create cell styles (code similar to old RenderNodeWithCursor)
 	sizeCell := lipgloss.NewStyle().Width(SizeWidth).Align(lipgloss.Right).Foreground(metaColor).Background(metaBg).Render(sizeStr)
-	uidCell := lipgloss.NewStyle().Width(UidGidWidth).Align(lipgloss.Right).Foreground(metaColor).Background(metaBg).Render(uidGid)
+	uidCell := lipgloss.NewStyle().Width(UIDGidWidth).Align(lipgloss.Right).Foreground(metaColor).Background(metaBg).Render(uidGid)
 	permCell := lipgloss.NewStyle().Width(PermWidth).Align(lipgloss.Right).Foreground(metaColor).Background(metaBg).Render(perm)
 	gap := lipgloss.NewStyle().Width(len(MetaGap)).Background(metaBg).Render(MetaGap)
 
@@ -167,5 +174,9 @@ func (d TreeDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	}
 
 	// Final assembly
-	fmt.Fprintf(w, "%s%s%s%s%s%s", styledPrefix, diffIcon, styledIcon, styledName, padding, metaBlock)
+	_, err := fmt.Fprintf(w, "%s%s%s%s%s%s", styledPrefix, diffIcon, styledIcon, styledName, padding, metaBlock)
+	if err != nil {
+		// Ignore write errors in delegate (common in TUI rendering)
+		return
+	}
 }

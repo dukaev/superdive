@@ -1,3 +1,4 @@
+// Package layers provides the layers pane
 package layers
 
 import (
@@ -50,7 +51,8 @@ func RenderHeader(width int, wA, wM, wD int) string {
 	// Build header using the SAME format as data rows
 	// Order: Prefix | ID | Size | Stats | Digest | Command
 	var text string
-	if showDigest && showCommand {
+	switch {
+	case showDigest && showCommand:
 		// All columns
 		text = fmt.Sprintf("%-*s%-*s %*s %s %s %s",
 			ColWidthPrefix, prefix,
@@ -60,7 +62,7 @@ func RenderHeader(width int, wA, wM, wD int) string {
 			digest,
 			cmd,
 		)
-	} else if showDigest {
+	case showDigest:
 		// Without Command
 		text = fmt.Sprintf("%-*s%-*s %*s %s %s",
 			ColWidthPrefix, prefix,
@@ -69,7 +71,7 @@ func RenderHeader(width int, wA, wM, wD int) string {
 			statsStr,
 			digest,
 		)
-	} else if showCommand {
+	case showCommand:
 		// Without Digest
 		text = fmt.Sprintf("%-*s%-*s %*s %s %s",
 			ColWidthPrefix, prefix,
@@ -78,7 +80,7 @@ func RenderHeader(width int, wA, wM, wD int) string {
 			statsStr,
 			cmd,
 		)
-	} else {
+	default:
 		// Only Stats
 		text = fmt.Sprintf("%-*s%-*s %*s %s",
 			ColWidthPrefix, prefix,

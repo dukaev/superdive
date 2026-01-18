@@ -1,3 +1,4 @@
+// Package common provides shared types and messages for UI panes
 package common
 
 // LayoutMsg contains pane dimensions calculated by the parent

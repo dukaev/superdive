@@ -11,14 +11,14 @@ import (
 // RenderHeader creates a column header row with DYNAMIC columns
 func RenderHeader(width int) string {
 	// 1. Determine which columns to show
-	showSize, showUid, showPerm := getColumnVisibility(width)
+	showSize, showUID, showPerm := getColumnVisibility(width)
 
 	// Header style (muted to not distract)
 	headerColor := styles.BorderColor
 
 	// Create cell styles
 	sizeHeaderCell := lipgloss.NewStyle().Width(SizeWidth).Align(lipgloss.Right).Foreground(headerColor)
-	uidGidHeaderCell := lipgloss.NewStyle().Width(UidGidWidth).Align(lipgloss.Right).Foreground(headerColor)
+	uidGidHeaderCell := lipgloss.NewStyle().Width(UIDGidWidth).Align(lipgloss.Right).Foreground(headerColor)
 	permHeaderCell := lipgloss.NewStyle().Width(PermWidth).Align(lipgloss.Right).Foreground(headerColor)
 	gapStyle := lipgloss.NewStyle().Width(len(MetaGap))
 
@@ -28,7 +28,7 @@ func RenderHeader(width int) string {
 	if showSize {
 		metaCells = append(metaCells, sizeHeaderCell.Render("Size"))
 	}
-	if showUid {
+	if showUID {
 		// Add gap before UID if Size is also shown
 		if len(metaCells) > 0 {
 			metaCells = append(metaCells, gapStyle.Render(MetaGap))

@@ -454,18 +454,19 @@ func (p *Pane) rebuildNodes() {
 
 	// Flatten tree structure into visible nodes
 	// Use different strategy based on current view mode and filter state
-	if p.flatMode && p.filterRegex != nil {
+	switch {
+	case p.flatMode && p.filterRegex != nil:
 		// Clean search mode: Flat View + Active Filter
 		// Show ONLY matching nodes, no parent directories (Google-style)
 		p.nodes = CollectSearchResults(p.treeVM.ViewTree.Root, p.filterRegex)
 		// Apply diff type filtering to search results
 		p.nodes = FilterFlatList(p.nodes, opts)
-	} else if p.flatMode {
+	case p.flatMode:
 		// Flat View without filter (manual toggle with 'f')
 		p.nodes = CollectFlatNodes(p.treeVM.ViewTree.Root)
 		// Apply diff type filtering
 		p.nodes = FilterFlatList(p.nodes, opts)
-	} else {
+	default:
 		// Regular Tree View with diff type filtering
 		p.nodes = CollectVisibleNodesWithFilter(p.treeVM.ViewTree.Root, opts)
 	}

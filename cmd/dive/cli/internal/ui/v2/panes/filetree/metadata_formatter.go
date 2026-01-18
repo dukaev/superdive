@@ -8,7 +8,7 @@ import (
 // Column width constants for metadata display
 const (
 	PermWidth   = 11 // "-rwxr-xr-x"
-	UidGidWidth = 9  // "0:0" or "1000:1000"
+	UIDGidWidth = 9  // "0:0" or "1000:1000"
 	SizeWidth   = 4  // compact size: "999", "1.5k", "10k", "1.5M"
 	MetaGap     = "  "
 
@@ -19,12 +19,12 @@ const (
 
 // getColumnVisibility returns flags for (size, uid, perm) visibility based on panel width.
 // Hiding priority: Permissions -> UID:GID -> Size (last to hide).
-func getColumnVisibility(width int) (showSize, showUid, showPerm bool) {
+func getColumnVisibility(width int) (showSize, showUID, showPerm bool) {
 	// Calculate required width for each combination
 	// Size + gap + UID + gap + Perm
-	widthFull := SizeWidth + len(MetaGap) + UidGidWidth + len(MetaGap) + PermWidth
+	widthFull := SizeWidth + len(MetaGap) + UIDGidWidth + len(MetaGap) + PermWidth
 	// Size + gap + UID (no Perm)
-	widthNoPerm := SizeWidth + len(MetaGap) + UidGidWidth
+	widthNoPerm := SizeWidth + len(MetaGap) + UIDGidWidth
 	// Size only
 	widthSizeOnly := SizeWidth
 
@@ -33,10 +33,10 @@ func getColumnVisibility(width int) (showSize, showUid, showPerm bool) {
 
 	// Determine which columns fit
 	showSize = availableForMeta >= widthSizeOnly
-	showUid = availableForMeta >= widthNoPerm
+	showUID = availableForMeta >= widthNoPerm
 	showPerm = availableForMeta >= widthFull
 
-	return showSize, showUid, showPerm
+	return showSize, showUID, showPerm
 }
 
 // FormatPermissions converts os.FileMode to Unix permission string (e.g. "-rwxr-xr-x")
@@ -54,7 +54,10 @@ func FormatPermissions(mode interface{}) string {
 	case uint32:
 		return formatRawMode(v)
 	case int:
-		return formatRawMode(uint32(v))
+		if v >= 0 {
+			return formatRawMode(uint32(v)) //nolint:gosec // already checked for negative value
+		}
+		return "----------"
 	default:
 		return "----------"
 	}
@@ -65,11 +68,12 @@ func formatRawMode(m uint32) string {
 	perms := []rune("----------")
 
 	// File type
-	if m&(1<<15) != 0 { // regular file
+	switch {
+	case m&(1<<15) != 0: // regular file
 		perms[0] = '-'
-	} else if m&(1<<14) != 0 { // directory
+	case m&(1<<14) != 0: // directory
 		perms[0] = 'd'
-	} else if m&(1<<12) != 0 { // symbolic link
+	case m&(1<<12) != 0: // symbolic link
 		perms[0] = 'l'
 	}
 
@@ -115,8 +119,8 @@ func formatRawMode(m uint32) string {
 	return string(perms)
 }
 
-// FormatUidGid formats UID:GID for display, showing "-" for default root:root (0:0)
-func FormatUidGid(uid, gid uint32) string {
+// FormatUIDGid formats UID:GID for display, showing "-" for default root:root (0:0)
+func FormatUIDGid(uid, gid uint32) string {
 	if uid != 0 || gid != 0 {
 		return formatUint32(uid) + ":" + formatUint32(gid)
 	}

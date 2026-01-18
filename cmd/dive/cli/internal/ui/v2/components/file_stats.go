@@ -10,15 +10,18 @@ import (
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/utils"
 )
 
-// Re-export FileStats from domain package
+// FileStats is an alias for domain.FileStats
 type FileStats = domain.FileStats
 
 // StatsPartType represents which part of the stats this is
 type StatsPartType int
 
 const (
+	// StatsPartAdded represents added files
 	StatsPartAdded StatsPartType = iota
+	// StatsPartModified represents modified files
 	StatsPartModified
+	// StatsPartRemoved represents removed files
 	StatsPartRemoved
 )
 

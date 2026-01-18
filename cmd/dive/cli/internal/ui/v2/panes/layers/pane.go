@@ -69,39 +69,67 @@ func GetColumnVisibility(width int) (showCommand, showDigest, showStats bool) {
 
 // Pane manages the layers list
 type Pane struct {
-	focused     bool // Set by parent via FocusStateMsg, not by Focus()/Blur() methods
-	width       int
-	height      int
-	layerVM     *viewmodel.LayerSetState
-	comparer    *filetree.Comparer // For computing layer comparison trees
-	viewport    viewport.Model
-	layerIndex  int
-	statsRows   []components.FileStatsRow // Stats row for each layer
-	statsCache  []domain.FileStats        // Cached statistics for each layer (calculated once)
-	statsWidths [3]int                    // [0]=AddedWidth, [1]=ModifiedWidth, [2]=RemovedWidth
+	focused       bool // Set by parent via FocusStateMsg, not by Focus()/Blur() methods
+	width         int
+	height        int
+	layerVM       *viewmodel.LayerSetState
+	comparer      *filetree.Comparer // For computing layer comparison trees
+	viewport      viewport.Model
+	layerIndex    int
+	statsRows     []components.FileStatsRow // Stats row for each layer
+	statsCache    []domain.FileStats        // Cached statistics for each layer (calculated once)
+	statsWidths   [3]int                    // [0]=AddedWidth, [1]=ModifiedWidth, [2]=RemovedWidth
+	digestValues  []components.CopiableValue // CopiableValue component for digest of each layer
+	idValues      []components.CopiableValue // CopiableValue component for ID of each layer
+	commandValues []components.CopiableValue // CopiableValue component for command of each layer
 }
 
 // New creates a new layers pane
 func New(layerVM *viewmodel.LayerSetState, comparer filetree.Comparer) Pane {
 	vp := viewport.New(80, 20)
 
-	// Initialize stats rows
+	// Initialize stats rows and copiable values
 	var statsRows []components.FileStatsRow
+	var digestValues []components.CopiableValue
+	var idValues []components.CopiableValue
+	var commandValues []components.CopiableValue
 	if layerVM != nil && len(layerVM.Layers) > 0 {
-		statsRows = make([]components.FileStatsRow, len(layerVM.Layers))
+		count := len(layerVM.Layers)
+		statsRows = make([]components.FileStatsRow, count)
+		digestValues = make([]components.CopiableValue, count)
+		idValues = make([]components.CopiableValue, count)
+		commandValues = make([]components.CopiableValue, count)
 		for i := range layerVM.Layers {
 			statsRows[i] = components.NewFileStatsRow()
+
+			// Initialize copiable value for digest
+			digestValues[i] = components.NewCopiableValue("")
+			digestValues[i].SetWidth(6)                    // Digest width
+			digestValues[i].SetTruncateWithEllipsis(false) // Don't show ellipsis for hashes
+
+			// Initialize copiable value for ID
+			idValues[i] = components.NewCopiableValue("")
+			idValues[i].SetWidth(ColWidthID)              // ID width
+			idValues[i].SetTruncateWithEllipsis(false)     // Don't show ellipsis for IDs
+
+			// Initialize copiable value for command
+			commandValues[i] = components.NewCopiableValue("")
+			// Command width is dynamic, will be set during rendering
+			commandValues[i].SetTruncateWithEllipsis(false) // Don't show ellipsis for commands
 		}
 	}
 
 	p := Pane{
-		layerVM:    layerVM,
-		comparer:   &comparer,
-		viewport:   vp,
-		layerIndex: 0,
-		width:      80,
-		height:     20,
-		statsRows:  statsRows,
+		layerVM:       layerVM,
+		comparer:      &comparer,
+		viewport:      vp,
+		layerIndex:    0,
+		width:         80,
+		height:        20,
+		statsRows:     statsRows,
+		digestValues:  digestValues,
+		idValues:      idValues,
+		commandValues: commandValues,
 	}
 	// IMPORTANT: Generate content immediately so viewport is not empty on startup
 	// BUT: First calculate stats to avoid heavy computation in View()
@@ -237,6 +265,54 @@ func (m *Pane) Init() tea.Cmd {
 func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	// Update all copiable values (handle tickMsg for copy icon timer)
+	contentNeedsUpdate := false
+
+	// Update digest values
+	for i := range m.digestValues {
+		oldShowingCopy := m.digestValues[i].IsShowingCopy()
+		var cmd tea.Cmd
+		m.digestValues[i], cmd = m.digestValues[i].Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		// Check if showingCopy state changed (icon shown/hidden)
+		if oldShowingCopy != m.digestValues[i].IsShowingCopy() {
+			contentNeedsUpdate = true
+		}
+	}
+
+	// Update ID values
+	for i := range m.idValues {
+		oldShowingCopy := m.idValues[i].IsShowingCopy()
+		var cmd tea.Cmd
+		m.idValues[i], cmd = m.idValues[i].Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		if oldShowingCopy != m.idValues[i].IsShowingCopy() {
+			contentNeedsUpdate = true
+		}
+	}
+
+	// Update command values
+	for i := range m.commandValues {
+		oldShowingCopy := m.commandValues[i].IsShowingCopy()
+		var cmd tea.Cmd
+		m.commandValues[i], cmd = m.commandValues[i].Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		if oldShowingCopy != m.commandValues[i].IsShowingCopy() {
+			contentNeedsUpdate = true
+		}
+	}
+
+	// Regenerate content if any component changed state
+	if contentNeedsUpdate {
+		m.updateContent()
+	}
+
 	switch msg := msg.(type) {
 	case common.LayoutMsg:
 		// Parent sends layout info instead of calling Resize()
@@ -267,18 +343,25 @@ func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 			const contentOffsetY = 4
 			const contentOffsetX = 1
 
-			if msg.Button == tea.MouseButtonWheelUp {
-				cmds = append(cmds, m.moveUp())
-			} else if msg.Button == tea.MouseButtonWheelDown {
-				cmds = append(cmds, m.moveDown())
-			} else if msg.Button == tea.MouseButtonLeft {
-				// Adjust coordinates to be relative to content area
-				contentX := msg.LocalX - contentOffsetX
-				contentY := msg.LocalY - contentOffsetY
+			// Adjust coordinates to be relative to content area
+			contentX := msg.LocalX - contentOffsetX
+			contentY := msg.LocalY - contentOffsetY
 
-				// Ignore clicks on headers/decorations (negative coordinates)
-				if contentY >= 0 && contentX >= 0 {
+			// Ignore clicks on headers/decorations (negative coordinates)
+			if contentY >= 0 && contentX >= 0 {
+				switch msg.Button {
+				case tea.MouseButtonWheelUp:
+					cmds = append(cmds, m.moveUp())
+				case tea.MouseButtonWheelDown:
+					cmds = append(cmds, m.moveDown())
+				case tea.MouseButtonLeft:
+					// Left click: handle selection and double-click for digest
 					if cmd := m.handleClick(contentX, contentY); cmd != nil {
+						cmds = append(cmds, cmd)
+					}
+				case tea.MouseButtonRight:
+					// Right click: handle copy for digest
+					if cmd := m.handleRightClick(contentX, contentY); cmd != nil {
 						cmds = append(cmds, cmd)
 					}
 				}
@@ -338,7 +421,75 @@ func (m *Pane) moveDown() tea.Cmd {
 	}
 }
 
-// handleClick processes a mouse click with CONTENT-RELATIVE coordinates
+// getDigestColumnPosition returns the (startX, endX) position of the digest column
+// Returns (-1, -1) if digest column is not visible
+func (m *Pane) getDigestColumnPosition() (int, int) {
+	width := m.width - 2 // Viewport width
+	_, showDigest, showStats := GetColumnVisibility(width)
+
+	if !showDigest {
+		return -1, -1
+	}
+
+	// Calculate start position of digest column
+	// Base: Prefix(5) + ID(4) + Size(7) + padding(2) = 18
+	startX := ColWidthPrefix + ColWidthID + ColPadding + ColWidthSize + ColPadding
+
+	// Add stats width if visible
+	if showStats {
+		// Stats width: A + space + M + space + D + space
+		// Use the dynamic widths calculated
+		statsWidth := m.statsWidths[0] + 1 + m.statsWidths[1] + 1 + m.statsWidths[2]
+		startX += statsWidth + ColPadding
+	}
+
+	endX := startX + 6 // Digest is always 6 chars
+
+	return startX, endX
+}
+
+// getIDColumnPosition returns the (startX, endX) position of the ID column
+func (m *Pane) getIDColumnPosition() (int, int) {
+	// ID column is always visible
+	// Start: Prefix(5) + padding = 6
+	startX := ColWidthPrefix + ColPadding
+	endX := startX + ColWidthID
+	return startX, endX
+}
+
+// getCommandColumnPosition returns the (startX, endX) position of the command column
+// Returns (-1, -1) if command column is not visible
+func (m *Pane) getCommandColumnPosition() (int, int) {
+	width := m.width - 2 // Viewport width
+	showCommand, _, showStats := GetColumnVisibility(width)
+
+	if !showCommand {
+		return -1, -1
+	}
+
+	// Calculate start position of command column
+	// Base: Prefix(5) + ID(4) + Size(7) + padding(2) = 18
+	startX := ColWidthPrefix + ColWidthID + ColPadding + ColWidthSize + ColPadding
+
+	// Add stats width if visible
+	if showStats {
+		statsWidth := m.statsWidths[0] + 1 + m.statsWidths[1] + 1 + m.statsWidths[2]
+		startX += statsWidth + ColPadding
+	}
+
+	// Add digest width if visible
+	_, showDigest, _ := GetColumnVisibility(width)
+	if showDigest {
+		startX += 6 + ColPadding
+	}
+
+	// Command extends to end of viewport
+	endX := width
+
+	return startX, endX
+}
+
+// handleClick processes a left mouse click with CONTENT-RELATIVE coordinates
 // x, y are provided by the caller after adjusting for visual offsets:
 // - x: relative to content area (X=0 is first column of content, after left border)
 // - y: relative to content area (Y=0 is first line of content, after title+padding)
@@ -346,32 +497,60 @@ func (m *Pane) moveDown() tea.Cmd {
 // The caller has already subtracted:
 //   - contentOffsetX (left border)
 //   - contentOffsetY (top border + title + padding)
-func (m *Pane) handleClick(x, y int) tea.Cmd {
+//
+// Left click always selects the layer (copy is done via right click)
+func (m *Pane) handleClick(_ int, y int) tea.Cmd {
 	// Account for viewport scrolling to get absolute layer index
 	targetIndex := y + m.viewport.YOffset
 	if targetIndex < 0 || targetIndex >= len(m.layerVM.Layers) {
 		return nil
 	}
 
-	// TEMPORARILY DISABLED: Click on stats (mod, new, del) to toggle visibility
-	// This functionality is disabled for now - clicks on stats will select the layer instead
-	//
-	// // Check if click is in stats area
-	// if targetIndex < len(m.statsRows) {
-	// 	partType, found := m.statsRows[targetIndex].GetPartAtPosition(x, StatsStartOffset)
-	// 	if found {
-	// 		// Click on a stats part - toggle that specific part
-	// 		part := m.statsRows[targetIndex].GetPart(partType)
-	// 		if part != nil {
-	// 			part.ToggleActive()
-	// 			m.updateContent()
-	// 			return nil
-	// 		}
-	// 	}
-	// }
-
-	// All clicks (including stats) select the layer
+	// Left click always selects the layer
 	return m.SetLayerIndex(targetIndex)
+}
+
+// handleRightClick processes a right mouse click with CONTENT-RELATIVE coordinates
+// Right click immediately copies the value (no double-click needed)
+func (m *Pane) handleRightClick(x int, y int) tea.Cmd {
+	// Account for viewport scrolling to get absolute layer index
+	targetIndex := y + m.viewport.YOffset
+	if targetIndex < 0 || targetIndex >= len(m.layerVM.Layers) {
+		return nil
+	}
+
+	// Check ID column
+	idStartX, idEndX := m.getIDColumnPosition()
+	if idStartX >= 0 && x >= idStartX && x < idEndX {
+		if targetIndex < len(m.idValues) {
+			cmd := m.idValues[targetIndex].TriggerCopy()
+			m.updateContent()
+			return cmd
+		}
+	}
+
+	// Check digest column
+	digestStartX, digestEndX := m.getDigestColumnPosition()
+	if digestStartX >= 0 && x >= digestStartX && x < digestEndX {
+		if targetIndex < len(m.digestValues) {
+			cmd := m.digestValues[targetIndex].TriggerCopy()
+			m.updateContent()
+			return cmd
+		}
+	}
+
+	// Check command column
+	cmdStartX, cmdEndX := m.getCommandColumnPosition()
+	if cmdStartX >= 0 && x >= cmdStartX && x < cmdEndX {
+		if targetIndex < len(m.commandValues) {
+			cmd := m.commandValues[targetIndex].TriggerCopy()
+			m.updateContent()
+			return cmd
+		}
+	}
+
+	// Right click elsewhere does nothing (could add context menu later)
+	return nil
 }
 
 // updateContent regenerates the viewport content
@@ -405,10 +584,30 @@ func (m *Pane) generateContent() string {
 			style = styles.SelectedLayerStyle
 		}
 
-		// Format ID
-		id := layer.Id
-		if len(id) > ColWidthID {
-			id = id[:ColWidthID]
+		// Format ID using CopiableValue component
+		id := ""
+		if i < len(m.idValues) {
+			m.idValues[i].SetValue(layer.Id)
+
+			// For selected layer, use plain text (no styling) to allow background highlight
+			// For normal layers, add gray color styling via component style
+			if i == m.layerIndex {
+				m.idValues[i].SetStyle(lipgloss.NewStyle())
+			} else {
+				m.idValues[i].SetStyle(styles.MetaDataStyle)
+			}
+
+			// Use component View() which handles showing value or copy icon
+			id = m.idValues[i].View()
+		} else {
+			// Fallback if component not initialized
+			id = layer.Id
+			if len(id) > ColWidthID {
+				id = id[:ColWidthID]
+			}
+			if i != m.layerIndex {
+				id = styles.MetaDataStyle.Render(id)
+			}
 		}
 
 		// Format Size
@@ -438,25 +637,42 @@ func (m *Pane) generateContent() string {
 			}
 		}
 
-		// Format digest (short version: 6 chars)
+		// Format digest (short version: 6 chars) using CopiableValue component
 		digest := ""
 		if showDigest && layer.Digest != "" {
-			const digestWidth = 6
-			// Remove "sha256:" prefix if present and take first 6 chars
-			shortDigest := strings.TrimPrefix(layer.Digest, "sha256:")
-			if len(shortDigest) > digestWidth {
-				shortDigest = shortDigest[:digestWidth]
-			}
-			// For selected layer, use plain text to allow background highlight
-			// For normal layers, add gray color styling
-			if i == m.layerIndex {
-				digest = shortDigest
+			// Remove "sha256:" prefix for storage (full digest without prefix)
+			fullDigest := strings.TrimPrefix(layer.Digest, "sha256:")
+
+			// Update copiable value component with FULL digest for copying
+			if i < len(m.digestValues) {
+				m.digestValues[i].SetValue(fullDigest)
+
+				// For selected layer, use plain text (no styling) to allow background highlight
+				// For normal layers, add gray color styling via component style
+				if i == m.layerIndex {
+					m.digestValues[i].SetStyle(lipgloss.NewStyle())
+				} else {
+					m.digestValues[i].SetStyle(styles.MetaDataStyle)
+				}
+
+				// Use component View() which handles showing value or copy icon
+				// Component will truncate to 6 chars for display (SetWidth(6) was set in New())
+				digest = m.digestValues[i].View()
 			} else {
-				digest = styles.MetaDataStyle.Render(shortDigest)
+				// Fallback if component not initialized
+				shortDigest := fullDigest
+				if len(shortDigest) > 6 {
+					shortDigest = shortDigest[:6]
+				}
+				if i == m.layerIndex {
+					digest = shortDigest
+				} else {
+					digest = styles.MetaDataStyle.Render(shortDigest)
+				}
 			}
 		}
 
-		// Format command to take ALL remaining space
+		// Format command to take ALL remaining space using CopiableValue component
 		cmd := ""
 		cmdWidth := 0 // Will store the actual width allocated to command
 		if showCommand {
@@ -489,16 +705,37 @@ func (m *Pane) generateContent() string {
 				cmdWidth = 1
 			}
 
-			// Truncate command to exactly fit available width
-			cmd = rawCmd
-			if runewidth.StringWidth(cmd) > cmdWidth {
-				cmd = runewidth.Truncate(cmd, cmdWidth, "")
+			// Use CopiableValue component for command
+			if i < len(m.commandValues) {
+				m.commandValues[i].SetValue(rawCmd)
+				m.commandValues[i].SetWidth(cmdWidth)
+
+				// For selected layer, use plain text (no styling) to allow background highlight
+				// For normal layers, add gray color styling via component style
+				if i == m.layerIndex {
+					m.commandValues[i].SetStyle(lipgloss.NewStyle())
+				} else {
+					m.commandValues[i].SetStyle(styles.MetaDataStyle)
+				}
+
+				// Use component View() which handles showing value or copy icon
+				cmd = m.commandValues[i].View()
+			} else {
+				// Fallback if component not initialized
+				cmd = rawCmd
+				if runewidth.StringWidth(cmd) > cmdWidth {
+					cmd = runewidth.Truncate(cmd, cmdWidth, "")
+				}
+				if i != m.layerIndex {
+					cmd = styles.MetaDataStyle.Render(cmd)
+				}
 			}
 		}
 
 		// Build the line dynamically based on column visibility
 		var text string
-		if showDigest && showCommand {
+		switch {
+		case showDigest && showCommand:
 			// All columns: Prefix ID Size Stats Digest Command
 			// Command uses dynamic width to fill remaining space
 			text = fmt.Sprintf("%-*s%-*s %*s %s %s %-*s",
@@ -509,7 +746,7 @@ func (m *Pane) generateContent() string {
 				digest,
 				cmdWidth, cmd,
 			)
-		} else if showDigest {
+		case showDigest:
 			// Without Command: Prefix ID Size Stats Digest
 			text = fmt.Sprintf("%-*s%-*s %*s %s %s",
 				ColWidthPrefix, prefix,
@@ -518,7 +755,7 @@ func (m *Pane) generateContent() string {
 				statsStr,
 				digest,
 			)
-		} else if showCommand {
+		case showCommand:
 			// Without Digest: Prefix ID Size Stats Command
 			// Command uses dynamic width to fill remaining space
 			text = fmt.Sprintf("%-*s%-*s %*s %s %-*s",
@@ -528,7 +765,7 @@ func (m *Pane) generateContent() string {
 				statsStr,
 				cmdWidth, cmd,
 			)
-		} else {
+		default:
 			// Only Stats: Prefix ID Size Stats
 			text = fmt.Sprintf("%-*s%-*s %*s %s",
 				ColWidthPrefix, prefix,

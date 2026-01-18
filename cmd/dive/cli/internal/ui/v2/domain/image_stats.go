@@ -1,3 +1,4 @@
+// Package domain provides domain models for the UI
 package domain
 
 import (

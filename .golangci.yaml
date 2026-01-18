@@ -1,57 +1,101 @@
+version: "2"
+
 linters:
   disable-all: true
   enable:
-    # --- 1. Базовые (находят реальные ошибки и мертвый код) ---
-    - govet       # Стандартный анализ Go
-    - errcheck    # Проверка обработки ошибок
-    - staticcheck # Огромный набор проверок, стандарт индустрии
-    - gosimple    # Предлагает упрощение кода
-    - unused      # Находит неиспользуемые переменные/функции (замена varcheck/deadcode)
-    - ineffassign # Находит бесполезные присваивания
-    - typecheck   # Проверка типов (как компилятор)
-    - bodyclose   # Проверка закрытия body в HTTP ответах
+    # --- 1. Critical Bugs & Correctness (Must Have) ---
+    - govet
+    - errcheck
+    - staticcheck  # includes gosimple
+    - bodyclose
+    - nilerr        # [SENIOR] Возврат nil, когда есть ошибка
+    - noctx         # [SENIOR] HTTP запросы без контекста (причина утечек памяти)
+    - gosec         # [SENIOR] Базовая безопасность
 
-    # --- 2. Форматирование (легко исправить автоматом) ---
-    - gofmt
-    - goimports
-    - misspell    # Опечатки в словах
+    # --- 2. Clean Code & Dead Code ---
+    - unused
+    - ineffassign
+    - unconvert     # [SENIOR] Убирает лишние конвертации типов (int(x))
+    - prealloc      # [SENIOR] Оптимизация аллокаций слайсов
 
-    # --- 3. Сложность (настройки ниже расслаблены для старта) ---
-    - gocyclo     # Цикломатическая сложность
-    - gocognit    # Когнитивная сложность (понятность кода)
-    - funlen      # Длина функций
-    - nestif      # Вложенность if
-    - goconst     # Повторяющиеся строки
+    # --- 3. Style ---
+    - misspell
+    - revive        # [SENIOR] Замена golint. Идиоматичный Go.
+
+    # --- 4. Complexity & Architecture ---
+    - gocyclo
+    - gocognit
+    - funlen
+    - nestif
+    - goconst
+
+    # --- 5. Linter Hygiene (Meta-Linting) ---
+    - nolintlint    # [SENIOR] Заставляет чистить старые //nolint
+
+    # --- 6. The "Opinionated" Reviewer ---
+    - gocritic      # [SENIOR] Находит неочевидные баги и стилистические огрехи
 
 linters-settings:
-  # Настройки сложности взяты "помягче" (из второго файла),
-  # чтобы не блокировать работу сразу.
-
+  # Настройки сложности (оставляем ваши мягкие настройки для легаси)
   funlen:
-    # Лимит строк в функции.
-    # В первом файле было 80, во втором 110. Берем 110 для мягкого старта.
     lines: 110
-    # Лимит инструкций (операций).
     statements: 60
 
   gocyclo:
-    # Стандарт 10-15. Вы ставили 35. Оставляем 35, чтобы не переписывать полпроекта.
     min-complexity: 35
 
   gocognit:
-    # Чуть строже, чем cyclo, так как ловит запутанную логику.
-    min-complexity: 30 # Увеличил с 20 до 30 для старта.
+    min-complexity: 30
 
   nestif:
-    # Максимальная вложенность if.
-    min-complexity: 5 # Увеличил с 4 до 5 (чуть мягче).
+    min-complexity: 5
 
   goconst:
-    min-len: 3          # Минимальная длина строки для проверки
-    min-occurrences: 3  # Сколько раз строка должна повториться, чтобы ругаться
+    min-len: 3
+    min-occurrences: 3
+
+  # [SENIOR SETTINGS]
+  revive:
+    rules:
+      - name: exported
+        disabled: true # Отключаем требование комментов ко всему экспортируемому (часто шумно для UI)
+      - name: package-comments
+        disabled: true
+      - name: dot-imports
+        severity: warning
+      - name: error-naming
+        severity: warning
+      - name: error-strings
+        severity: warning
+      - name: error-return
+        severity: warning
+      - name: var-naming
+        severity: warning
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - whyNoLint          # Уже проверяем через nolintlint
+      - wrapperFunc        # Иногда мешает
+      - ifElseChain        # Конфликтует иногда с логикой UI
+
+  nolintlint:
+    # Требовать комментарий, объясняющий причину отключения линтера?
+    # Пример: //nolint:gocyclo // complexity is needed here
+    require-explanation: false # Пока false для старта, но Staff поставил бы true
+    require-specific: true     # Запрещает просто //nolint, требует //nolint:gocyclo
+
+  gosec:
+    # Исключаем G104 (дублирует errcheck)
+    excludes:
+      - G104
 
 issues:
-  # Исключаем проверки для тестов и сгенерированного кода
   exclude-dirs:
     - vendor
   exclude-rules:
@@ -62,7 +106,8 @@ issues:
         - dupl
         - funlen
         - goconst
+        - gosec     # В тестах безопасность не так критична (hardcoded credentials ok)
+        - noctx     # В тестах часто контекст не нужен
 
-# Лимиты выполнения, чтобы линтер не висел вечно на большом проекте
 run:
   timeout: 5m

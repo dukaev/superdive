@@ -1,3 +1,4 @@
+// Package keys defines key bindings for the UI
 package keys
 
 import "github.com/charmbracelet/bubbles/key"
@@ -41,24 +42,21 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
+// Keys holds all key bindings for the UI
 var Keys = KeyMap{
-	Up:         key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "navigate up")),
-	Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "navigate down")),
 	Left:       key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/h", "scroll left")),
 	Right:      key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("→/l", "scroll right")),
 	Tab:        key.NewBinding(key.WithKeys("tab", "shift+tab"), key.WithHelp("tab", "switch pane")),
 	Filter:     key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 	Quit:       key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", "quit")),
-	Enter:      key.NewBinding(key.WithKeys("enter", "space"), key.WithHelp("enter/spc", "toggle folder")),
 	Esc:        key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 	Space:      key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "toggle folder")),
 	ToggleView: key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "toggle view")),
 
 	// Tree control bindings
-	CollapseAll:      key.NewBinding(key.WithKeys("C"), key.WithHelp("shift+c", "collapse all")),
-	ExpandAll:        key.NewBinding(key.WithKeys("O"), key.WithHelp("shift+o", "expand all")),
-	ToggleAdded:      key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "toggle added")),
-	ToggleRemoved:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "toggle removed")),
-	ToggleModified:   key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "toggle modified")),
-	ToggleUnmodified: key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "toggle unmodified")),
+	CollapseAll:    key.NewBinding(key.WithKeys("C"), key.WithHelp("shift+c", "collapse all")),
+	ExpandAll:      key.NewBinding(key.WithKeys("O"), key.WithHelp("shift+o", "expand all")),
+	ToggleAdded:    key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "added")),
+	ToggleRemoved:  key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "removed")),
+	ToggleModified: key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "modified")),
 }

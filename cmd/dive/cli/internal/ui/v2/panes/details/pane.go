@@ -106,9 +106,10 @@ func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 	case common.LocalMouseMsg:
 		// Handle mouse wheel for scrolling
 		if msg.Action == tea.MouseActionPress {
-			if msg.Button == tea.MouseButtonWheelUp {
+			switch msg.Button {
+			case tea.MouseButtonWheelUp:
 				m.viewport.ScrollUp(1)
-			} else if msg.Button == tea.MouseButtonWheelDown {
+			case tea.MouseButtonWheelDown:
 				m.viewport.ScrollDown(1)
 			}
 		}
@@ -187,6 +188,6 @@ func (m Pane) generateContent() string {
 
 // ShortHelp returns key bindings specific to the details pane.
 // Details pane is read-only, so it has no specific keys.
-func (p *Pane) ShortHelp() []key.Binding {
+func (m *Pane) ShortHelp() []key.Binding {
 	return nil
 }

@@ -1,6 +1,8 @@
+// Package testutils provides testing utilities for the UI
 package testutils
 
 import (
+	"context"
 	"os/exec"
 	"strings"
 	"testing"
@@ -30,7 +32,7 @@ func repoRoot(t testing.TB) string {
 		return repoRootCache
 	}
 	// use git to find the root of the repo
-	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	out, err := exec.CommandContext(context.Background(), "git", "rev-parse", "--show-toplevel").Output()
 	if err != nil {
 		t.Fatalf("failed to get repo root: %v", err)
 	}

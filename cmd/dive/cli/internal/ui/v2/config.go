@@ -1,3 +1,4 @@
+// Package v2 provides configuration and setup for the V2 UI
 package v2
 
 import (
@@ -18,6 +19,7 @@ type Config struct {
 	stackErr    error
 }
 
+// ContentReader defines the interface for reading file contents
 type ContentReader interface {
 	Extract(ctx context.Context, id string, layer string, path string) error
 }
