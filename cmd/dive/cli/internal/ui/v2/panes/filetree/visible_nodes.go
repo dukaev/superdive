@@ -90,7 +90,7 @@ func CollectVisibleNodesWithFilter(root *filetree.FileNode, opts FilterOptions) 
 		for i, isLast := range levels {
 			if i == len(levels)-1 {
 				if isLast {
-					prefixBuilder.WriteString("╰─")
+					prefixBuilder.WriteString("└─")
 				} else {
 					prefixBuilder.WriteString("├─")
 				}

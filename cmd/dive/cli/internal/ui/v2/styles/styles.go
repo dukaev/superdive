@@ -102,7 +102,7 @@ func RenderBox(title string, width, height int, content string, isSelected bool)
 
 	// 3. Create base box style and render content
 	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.NormalBorder()).
 		BorderForeground(borderColor).
 		Width(width - 2).
 		Height(height - 2)
@@ -138,12 +138,12 @@ func RenderBox(title string, width, height int, content string, isSelected bool)
 		borderFillWidth = 0
 	}
 
-	// Build new top border: ╭─title───╮
+	// Build new top border: ┌─title───┐
 	// Render each part separately to preserve colors
 	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
-	leftPart := borderStyle.Render("╭─")
+	leftPart := borderStyle.Render("┌─")
 	titlePart := titleStyle.Render(truncatedTitle)
-	rightPart := borderStyle.Render("─" + strings.Repeat("─", borderFillWidth) + "╮")
+	rightPart := borderStyle.Render("─" + strings.Repeat("─", borderFillWidth) + "┐")
 
 	topBorder := leftPart + titlePart + rightPart
 

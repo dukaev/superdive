@@ -698,6 +698,13 @@ func (m *Model) applyFilter(pattern string) {
 	}
 	m.filterRegex = filterRegex
 
+	// Send filter to layers pane for highlighting matching layers
+	if layersPane, ok := m.panes[PaneLayer]; ok {
+		filterMsg := layers.UpdateFilterMsg{FilterRegex: filterRegex}
+		updatedPane, _ := layersPane.Update(filterMsg)
+		m.panes[PaneLayer] = updatedPane
+	}
+
 	// Update the tree viewmodel with the filter
 	// This will update ViewTree based on the filter
 	_ = m.treeVM.Update(filterRegex, m.layout.RightWidth, m.layout.TreeHeight)

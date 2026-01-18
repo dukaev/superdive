@@ -1,9 +1,13 @@
 package filetree
 
 import (
+	"bytes"
 	"fmt"
+	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -63,6 +67,15 @@ type SetLayerInfoMsg struct {
 	TotalLayers int
 }
 
+// CopyFinishedMsg is sent after a copy operation completes
+type CopyFinishedMsg struct {
+	Path    string
+	Success bool
+}
+
+// HideCopyNoticeMsg is sent to hide the copy notification after timeout
+type HideCopyNoticeMsg struct{}
+
 // Pane manages the file tree using viewport for smooth scrolling
 type Pane struct {
 	focused bool
@@ -89,6 +102,13 @@ type Pane struct {
 	showRemoved    bool
 	showModified   bool
 	showUnmodified bool
+
+	// Copy notification state
+	copyNoticePath  string   // Path that was copied (for display in title)
+	copiedNodeIndex int      // Index of the node that was copied (for icon change)
+
+	// Last collapse state for toggle functionality
+	lastCollapseState bool // true = collapsed, false = expanded
 }
 
 // New creates a new tree pane with viewport for smooth scrolling
@@ -108,6 +128,9 @@ func New(treeVM *viewmodel.FileTreeViewModel) Pane {
 		showRemoved:    true,
 		showModified:   true,
 		showUnmodified: true,
+		copyNoticePath:  "", // Initialize empty
+		copiedNodeIndex: -1, // -1 means no node copied
+		lastCollapseState: true, // Start with collapsed state (default is collapsed)
 	}
 
 	// Build initial list items
@@ -142,6 +165,10 @@ func (p *Pane) Resize(width, height int) {
 func (p *Pane) SetTreeVM(treeVM *viewmodel.FileTreeViewModel) {
 	p.treeVM = treeVM
 	p.rebuildNodes()
+
+	// Set all directories as collapsed by default
+	p.setAllCollapsed(true)
+
 	p.cursor = 0
 	p.ensureCursorVisible()
 }
@@ -200,11 +227,17 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 		// Tree folding controls
 		case "C":
 			p.setAllCollapsed(true)
+			p.lastCollapseState = true // Remember state
 			p.rebuildNodes()
 			return p, nil
 		case "O":
 			p.setAllCollapsed(false)
+			p.lastCollapseState = false // Remember state
 			p.rebuildNodes()
+			return p, nil
+		case "c":
+			// Toggle: collapse all if expanded, expand all if collapsed
+			p.toggleAllCollapse()
 			return p, nil
 		}
 
@@ -287,7 +320,51 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 					}
 				}
 			}
+
+			// Handle Right Click (Copy file path)
+			if mouseMsg.Button == tea.MouseButtonRight {
+				// Calculate Y offset for the content
+				const contentOffsetY = 2
+
+				// Calculate which row was clicked relative to viewport top
+				clickY := msg.LocalY - contentOffsetY
+
+				if clickY >= 0 {
+					// Add viewport scroll offset to get absolute index
+					targetIndex := clickY + p.viewport.YOffset
+
+					// Validate index
+					if targetIndex >= 0 && targetIndex < len(p.nodes) {
+						// Get the full path of the clicked node
+						node := p.nodes[targetIndex].Node
+						filePath := node.Path()
+
+						// Store the index to show copy icon
+						p.copiedNodeIndex = targetIndex
+
+						// Copy to clipboard and trigger UI update
+						return p, copyPathToClipboard(filePath)
+					}
+				}
+			}
 		}
+
+	case CopyFinishedMsg:
+		// Handle copy completion - show notification
+		if msg.Success {
+			p.copyNoticePath = msg.Path
+			// copiedNodeIndex is already set by the right-click handler
+			// Hide notification after 2 seconds
+			return p, tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+				return HideCopyNoticeMsg{}
+			})
+		}
+
+	case HideCopyNoticeMsg:
+		// Hide copy notification and reset icon
+		p.copyNoticePath = ""
+		p.copiedNodeIndex = -1
+		return p, nil
 
 	case NodeToggledMsg, RefreshTreeContentMsg:
 		p.rebuildNodes()
@@ -377,14 +454,27 @@ func (p Pane) View() string {
 	}
 
 	// Build final title
-	title := baseTitle
-	// If filters are not all enabled, show filter indicator in title
-	if filters != "ARMU" {
-		title = fmt.Sprintf("[%d/%d] Layer Contents [%s]", p.currentLayerIndex+1, p.totalLayers, filters)
-	}
+	var title string
 
-	if p.flatMode {
-		title += " (Flat)"
+	// If there's an active copy notification, show it
+	if p.copyNoticePath != "" {
+		// Truncate path if too long
+		displayPath := p.copyNoticePath
+		if len(displayPath) > 40 {
+			displayPath = "..." + displayPath[len(displayPath)-40:]
+		}
+		title = fmt.Sprintf("COPIED: %s", displayPath)
+	} else {
+		// Standard title
+		title = baseTitle
+		// If filters are not all enabled, show filter indicator in title
+		if filters != "ARMU" {
+			title = fmt.Sprintf("[%d/%d] Layer Contents [%s]", p.currentLayerIndex+1, p.totalLayers, filters)
+		}
+
+		if p.flatMode {
+			title += " (Flat)"
+		}
 	}
 
 	return styles.RenderBox(title, p.width, p.height, fullContent, p.focused)
@@ -484,10 +574,22 @@ func (p Pane) renderVisibleContent() string {
 
 // renderNodeLine renders a single node line
 func (p Pane) renderNodeLine(node VisibleNode, isSelected bool) string {
-	if node.DisplayName != "" {
-		return RenderNodeLineWithDisplayName(node.Node, node.Prefix, node.DisplayName, isSelected, p.width-2, p.filterRegex)
+	// Find current node index in the nodes array
+	currentIndex := -1
+	for i, n := range p.nodes {
+		if n.Node == node.Node {
+			currentIndex = i
+			break
+		}
 	}
-	return RenderNodeLine(node.Node, node.Prefix, isSelected, p.width-2, p.filterRegex)
+
+	// Determine if this node was just copied
+	isCopied := currentIndex >= 0 && currentIndex == p.copiedNodeIndex
+
+	if node.DisplayName != "" {
+		return RenderNodeLineWithDisplayName(node.Node, node.Prefix, node.DisplayName, isSelected, p.width-2, p.filterRegex, isCopied)
+	}
+	return RenderNodeLine(node.Node, node.Prefix, isSelected, p.width-2, p.filterRegex, isCopied)
 }
 
 // rebuildNodes rebuilds the visible nodes list when tree structure changes
@@ -569,6 +671,26 @@ func (p *Pane) setAllCollapsed(collapsed bool) {
 	for _, child := range root.Children {
 		traverse(child)
 	}
+}
+
+// toggleAllCollapse toggles all directories between collapsed and expanded
+// Uses lastCollapseState to determine next action (toggle behavior)
+func (p *Pane) toggleAllCollapse() {
+	if p.treeVM == nil || p.treeVM.ViewTree == nil || p.treeVM.ViewTree.Root == nil {
+		return
+	}
+
+	// Toggle based on last state
+	// If last was collapsed → expand all
+	// If last was expanded → collapse all
+	newState := !p.lastCollapseState
+	p.setAllCollapsed(newState)
+
+	// Update last state
+	p.lastCollapseState = newState
+
+	// Rebuild nodes to reflect the new state
+	p.rebuildNodes()
 }
 
 // toggleCollapse toggles the collapsed state of the selected directory
@@ -684,11 +806,58 @@ func (p *Pane) setExclusiveFilter(filterType string) {
 	p.rebuildNodes()
 }
 
+// copyPathToClipboard copies a file path to the system clipboard
+// Returns CopyFinishedMsg to trigger UI notification
+func copyPathToClipboard(path string) tea.Cmd {
+	return func() tea.Msg {
+		var cmd *exec.Cmd
+
+		switch runtime.GOOS {
+		case "darwin":
+			cmd = exec.Command("pbcopy")
+		case "linux":
+			// Try xclip first, then wl-copy, then xsel
+			if _, err := exec.LookPath("xclip"); err == nil {
+				cmd = exec.Command("xclip", "-selection", "clipboard")
+			} else if _, err := exec.LookPath("wl-copy"); err == nil {
+				cmd = exec.Command("wl-copy")
+			} else if _, err := exec.LookPath("xsel"); err == nil {
+				cmd = exec.Command("xsel", "--clipboard", "--input")
+			}
+		case "windows":
+			cmd = exec.Command("clip")
+		}
+
+		if cmd != nil {
+			cmd.Stdin = bytes.NewBufferString(path)
+			err := cmd.Run()
+			// Return result - success if no error
+			return CopyFinishedMsg{Path: path, Success: err == nil}
+		}
+
+		// No clipboard tool found
+		return CopyFinishedMsg{Path: "Clipboard tool not found (install xclip/xsel)", Success: false}
+	}
+}
+
 // ShortHelp returns key bindings specific to the file tree pane.
 // File tree has unique navigation keys for collapsing/expanding folders.
 // Note: ToggleView is NOT included here since it's already in global keys (keys.ShortHelp())
 func (p *Pane) ShortHelp() []key.Binding {
+	// Create a dynamic toggle key binding based on current state
+	toggleKey := keys.Keys.ToggleCollapse
+
+	// Dynamic hint: show what the button will do when pressed
+	if p.lastCollapseState {
+		// If currently collapsed, button will "expand all"
+		toggleKey.SetHelp("c", "expand all")
+	} else {
+		// If currently expanded, button will "collapse all"
+		toggleKey.SetHelp("c", "collapse all")
+	}
+
 	return []key.Binding{
+		toggleKey,               // Dynamic toggle collapse/expand
 		keys.Keys.ToggleAdded,      // Toggle added files
 		keys.Keys.ToggleRemoved,    // Toggle removed files
 		keys.Keys.ToggleModified,   // Toggle modified files

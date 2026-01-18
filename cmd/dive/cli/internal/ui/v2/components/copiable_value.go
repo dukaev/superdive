@@ -2,13 +2,14 @@ package components
 
 import (
 	"bytes"
-	"fmt"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2/styles"
 )
 
@@ -102,30 +103,42 @@ func (c CopiableValue) View() string {
 		// Show copy icon with success color
 		// IMPORTANT: Preserve the original width to avoid column width changes
 		iconText := styles.IconCopy
-		if c.width > 0 && len(iconText) < c.width {
+
+		// FIX: Use runewidth for correct visual width calculation
+		// len() counts bytes (icon = 3-4 bytes), which breaks layout
+		visualWidth := runewidth.StringWidth(iconText)
+
+		if c.width > 0 && visualWidth < c.width {
 			// Pad icon to match the original value width
-			iconText = fmt.Sprintf("%-*s", c.width, iconText)
+			paddingNeeded := c.width - visualWidth
+			if paddingNeeded > 0 {
+				iconText = iconText + strings.Repeat(" ", paddingNeeded)
+			}
 		}
 		return lipgloss.NewStyle().
-			Foreground(styles.SuccessColor).
+			Foreground(styles.PrimaryColor.Dark).
 			Render(iconText)
 	}
 
 	// Show the actual value
 	text := c.value
 	if c.width > 0 {
-		// Truncate if necessary
-		if len(text) > c.width {
+		// Truncate if necessary (use visual width, not byte length)
+		textWidth := runewidth.StringWidth(text)
+		if textWidth > c.width {
 			if c.truncateWithEllipsis {
-				// Leave room for ellipsis character
-				text = text[:c.width-1] + "…"
+				// Truncate with ellipsis using runewidth
+				text = runewidth.Truncate(text, c.width, "…")
 			} else {
 				// Simple truncation without ellipsis
-				text = text[:c.width]
+				text = runewidth.Truncate(text, c.width, "")
 			}
 		} else {
-			// Pad with spaces on the right
-			text = fmt.Sprintf("%-*s", c.width, text)
+			// Pad with spaces on the right to match exact width
+			paddingNeeded := c.width - textWidth
+			if paddingNeeded > 0 {
+				text = text + strings.Repeat(" ", paddingNeeded)
+			}
 		}
 	}
 
@@ -140,13 +153,13 @@ func (c CopiableValue) GetVisualWidth() int {
 		if c.width > 0 {
 			return c.width
 		}
-		return len(styles.IconCopy)
+		return runewidth.StringWidth(styles.IconCopy)
 	}
 
 	if c.width > 0 {
 		return c.width
 	}
-	return len(c.value)
+	return runewidth.StringWidth(c.value)
 }
 
 // copyToClipboard copies text to the system clipboard

@@ -123,7 +123,7 @@ func TestPane_ShortHelp(t *testing.T) {
 	// Test that ShortHelp returns tree-specific key bindings
 	keys := pane.ShortHelp()
 	require.NotNil(t, keys)
-	require.Len(t, keys, 5) // ToggleAdded, ToggleRemoved, ToggleModified, ToggleUnmodified, ToggleView
+	require.Len(t, keys, 5) // ToggleCollapse, ToggleAdded, ToggleRemoved, ToggleModified, ToggleUnmodified
 
 	// Extract key descriptions for verification
 	keyHelp := make([]string, len(keys))
@@ -131,10 +131,10 @@ func TestPane_ShortHelp(t *testing.T) {
 		keyHelp[i] = key.Help().Key
 	}
 
-	// Verify expected keys are present: ToggleAdded, ToggleRemoved, ToggleModified, ToggleUnmodified, ToggleView
+	// Verify expected keys are present: ToggleCollapse, ToggleAdded, ToggleRemoved, ToggleModified, ToggleUnmodified
+	require.Contains(t, keyHelp, "c")
 	require.Contains(t, keyHelp, "a")
 	require.Contains(t, keyHelp, "r")
 	require.Contains(t, keyHelp, "m")
 	require.Contains(t, keyHelp, "u")
-	require.Contains(t, keyHelp, "f")
 }

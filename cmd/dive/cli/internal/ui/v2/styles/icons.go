@@ -33,5 +33,7 @@ var (
 
 var (
 	// IconCopy indicates copy action
-	IconCopy = " " // nf-fa-copy
+	// FIX: Use nf-md-content_copy (Material Design) instead of nf-fa-copy
+	// This matches IconFile/IconDir style and is better supported in NF v3+
+	IconCopy = "󰆏 " // nf-md-content_copy
 )

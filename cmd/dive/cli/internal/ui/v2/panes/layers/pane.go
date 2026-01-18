@@ -2,6 +2,7 @@ package layers
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -28,6 +29,11 @@ type LayerChangedMsg struct {
 // FocusStateMsg is sent by parent to tell the pane whether it's focused or not
 type FocusStateMsg struct {
 	Focused bool
+}
+
+// UpdateFilterMsg is sent when the global search filter changes
+type UpdateFilterMsg struct {
+	FilterRegex *regexp.Regexp
 }
 
 // Define layout constants to ensure click detection matches rendering
@@ -82,6 +88,10 @@ type Pane struct {
 	digestValues  []components.CopiableValue // CopiableValue component for digest of each layer
 	idValues      []components.CopiableValue // CopiableValue component for ID of each layer
 	commandValues []components.CopiableValue // CopiableValue component for command of each layer
+
+	// Search state
+	filterRegex   *regexp.Regexp      // Active filter regex for highlighting matching layers
+	matchedLayers map[int]bool        // Cache: layer index -> contains matching files
 }
 
 // New creates a new layers pane
@@ -130,6 +140,7 @@ func New(layerVM *viewmodel.LayerSetState, comparer filetree.Comparer) Pane {
 		digestValues:  digestValues,
 		idValues:      idValues,
 		commandValues: commandValues,
+		matchedLayers: make(map[int]bool), // Initialize matched layers cache
 	}
 	// IMPORTANT: Generate content immediately so viewport is not empty on startup
 	// BUT: First calculate stats to avoid heavy computation in View()
@@ -201,6 +212,49 @@ func (m *Pane) precalculateStats() {
 
 	// Store computed widths
 	m.statsWidths = [3]int{maxA, maxM, maxD}
+}
+
+// calculateMatchedLayers searches for files matching the regex in all layers
+func (m *Pane) calculateMatchedLayers() {
+	// Reset the cache
+	m.matchedLayers = make(map[int]bool)
+	if m.filterRegex == nil || m.layerVM == nil {
+		return
+	}
+
+	// Iterate through all layers
+	for i, layer := range m.layerVM.Layers {
+		if layer.Tree == nil || layer.Tree.Root == nil {
+			continue
+		}
+
+		// Recursively check if the layer tree contains any matches
+		if m.treeContainsMatch(layer.Tree.Root) {
+			m.matchedLayers[i] = true
+		}
+	}
+}
+
+// treeContainsMatch recursively checks a node and its children for regex matches
+// Returns true on first match (early exit for performance)
+func (m *Pane) treeContainsMatch(node *filetree.FileNode) bool {
+	if node == nil {
+		return false
+	}
+
+	// Check the current node's path
+	if m.filterRegex.MatchString(node.Path()) {
+		return true
+	}
+
+	// Recursively check children
+	for _, child := range node.Children {
+		if m.treeContainsMatch(child) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Resize updates the pane dimensions
@@ -323,6 +377,13 @@ func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 	case FocusStateMsg:
 		// Parent controls focus state - use SetFocused method
 		m.SetFocused(msg.Focused)
+		return m, nil
+
+	case UpdateFilterMsg:
+		// Update filter regex and recalculate matching layers
+		m.filterRegex = msg.FilterRegex
+		m.calculateMatchedLayers()
+		m.updateContent()
 		return m, nil
 
 	case tea.KeyMsg:
@@ -576,13 +637,44 @@ func (m *Pane) generateContent() string {
 	for i, layer := range m.layerVM.Layers {
 		// Format: current/total (without brackets)
 		totalLayers := len(m.layerVM.Layers)
-		prefix := fmt.Sprintf("%d/%d ", i+1, totalLayers)
+		prefixStr := fmt.Sprintf("%d/%d ", i+1, totalLayers)
 		style := lipgloss.NewStyle()
 
 		if i == m.layerIndex {
 			// Highlight entire row width, not just text
 			style = styles.SelectedLayerStyle
 		}
+
+		// HIGHLIGHT LAYERS WITH MATCHING FILES
+		// If this layer contains files matching the search filter, highlight the prefix in yellow
+		var prefix string
+		if m.matchedLayers[i] {
+			// Layer contains matching files - use highlight color (yellow) and bold
+			matchStyle := lipgloss.NewStyle().
+				Foreground(styles.HighlightColor).
+				Bold(true)
+
+			// If this row is also selected, we need to be careful about styling
+			// to avoid color conflicts with the selection background
+			if i == m.layerIndex {
+				// For selected row, keep the highlight color but it may blend with selection
+				// The selection background (PanelBgColor) should work with yellow text
+				prefix = matchStyle.Render(prefixStr)
+			} else {
+				// Normal row - just apply highlight
+				prefix = matchStyle.Render(prefixStr)
+			}
+		} else {
+			// No matches - use normal styling
+			if i == m.layerIndex {
+				// Selected row - apply selection style to prefix
+				prefix = style.Render(prefixStr)
+			} else {
+				// Normal row - use muted color
+				prefix = styles.MetaDataStyle.Render(prefixStr)
+			}
+		}
+		// END HIGHLIGHT LAYERS
 
 		// Format ID using CopiableValue component
 		id := ""
@@ -733,46 +825,41 @@ func (m *Pane) generateContent() string {
 		}
 
 		// Build the line dynamically based on column visibility
+		// NOTE: We build lines manually instead of using fmt.Sprintf with %-*s
+		// because prefix contains ANSI color codes which break width formatting
+
+		// Helper to pad a string to a specific width (ignoring ANSI codes)
+		padToWidth := func(s string, w int) string {
+			visualWidth := runewidth.StringWidth(s)
+			if visualWidth >= w {
+				return s
+			}
+			return s + strings.Repeat(" ", w-visualWidth)
+		}
+
 		var text string
 		switch {
 		case showDigest && showCommand:
 			// All columns: Prefix ID Size Stats Digest Command
 			// Command uses dynamic width to fill remaining space
-			text = fmt.Sprintf("%-*s%-*s %*s %s %s %-*s",
-				ColWidthPrefix, prefix,
-				ColWidthID, id,
-				ColWidthSize, size,
-				statsStr,
-				digest,
-				cmdWidth, cmd,
-			)
+			paddedID := padToWidth(id, ColWidthID)
+			paddedSize := fmt.Sprintf("%*s", ColWidthSize, size)
+			text = prefix + paddedID + " " + paddedSize + " " + statsStr + " " + digest + " " + cmd
 		case showDigest:
 			// Without Command: Prefix ID Size Stats Digest
-			text = fmt.Sprintf("%-*s%-*s %*s %s %s",
-				ColWidthPrefix, prefix,
-				ColWidthID, id,
-				ColWidthSize, size,
-				statsStr,
-				digest,
-			)
+			paddedID := padToWidth(id, ColWidthID)
+			paddedSize := fmt.Sprintf("%*s", ColWidthSize, size)
+			text = prefix + paddedID + " " + paddedSize + " " + statsStr + " " + digest
 		case showCommand:
 			// Without Digest: Prefix ID Size Stats Command
-			// Command uses dynamic width to fill remaining space
-			text = fmt.Sprintf("%-*s%-*s %*s %s %-*s",
-				ColWidthPrefix, prefix,
-				ColWidthID, id,
-				ColWidthSize, size,
-				statsStr,
-				cmdWidth, cmd,
-			)
+			paddedID := padToWidth(id, ColWidthID)
+			paddedSize := fmt.Sprintf("%*s", ColWidthSize, size)
+			text = prefix + paddedID + " " + paddedSize + " " + statsStr + " " + cmd
 		default:
 			// Only Stats: Prefix ID Size Stats
-			text = fmt.Sprintf("%-*s%-*s %*s %s",
-				ColWidthPrefix, prefix,
-				ColWidthID, id,
-				ColWidthSize, size,
-				statsStr,
-			)
+			paddedID := padToWidth(id, ColWidthID)
+			paddedSize := fmt.Sprintf("%*s", ColWidthSize, size)
+			text = prefix + paddedID + " " + paddedSize + " " + statsStr
 		}
 
 		// Pad to full width for selected layer to ensure background fills entire row

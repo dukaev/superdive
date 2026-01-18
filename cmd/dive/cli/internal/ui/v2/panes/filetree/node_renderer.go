@@ -12,11 +12,11 @@ import (
 )
 
 // RenderNodeWithCursor renders a node with tree guides and improved visual design
-func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix string, isSelected bool, width int) {
+func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix string, isSelected bool, width int, isCopied bool) {
 	if node == nil {
 		return
 	}
-	row := RenderRow(node, prefix, "", isSelected, width, nil)
+	row := RenderRow(node, prefix, "", isSelected, width, nil, isCopied)
 	sb.WriteString(row)
 	sb.WriteString("\n")
 }
@@ -24,21 +24,28 @@ func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix s
 // RenderRow renders a single tree node row with DYNAMIC column hiding
 // displayName is optional - if empty, node.Name will be used
 // filterRegex is optional - if provided, matching text will be highlighted
-func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int, filterRegex *regexp.Regexp) string {
+// isCopied indicates this node's path was just copied to clipboard
+func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int, filterRegex *regexp.Regexp, isCopied bool) string {
 	// 1. Determine visibility based on width
 	showSize, showUID, showPerm := getColumnVisibility(width)
 
 	// --- Standard Rendering Logic (Icon, Color, etc) ---
 	icon := styles.IconFile
 	color := styles.DiffNormalColor
-	if node.Data.FileInfo.IsDir() {
-		if node.Data.ViewInfo.Collapsed {
-			icon = styles.IconDirClosed
-		} else {
-			icon = styles.IconDirOpen
+
+	// Show copy icon if this node was just copied
+	if isCopied {
+		icon = styles.IconCopy
+	} else {
+		if node.Data.FileInfo.IsDir() {
+			if node.Data.ViewInfo.Collapsed {
+				icon = styles.IconDirClosed
+			} else {
+				icon = styles.IconDirOpen
+			}
+		} else if node.Data.FileInfo.TypeFlag == 16 {
+			icon = styles.IconSymlink
 		}
-	} else if node.Data.FileInfo.TypeFlag == 16 {
-		icon = styles.IconSymlink
 	}
 
 	// Diff status color
@@ -252,14 +259,14 @@ func highlightMatches(text string, filter *regexp.Regexp, baseColor lipgloss.Ter
 
 // RenderNodeLine renders a single node line for viewport.
 // This is a convenience wrapper around RenderRow.
-func RenderNodeLine(node *filetree.FileNode, prefix string, isSelected bool, width int, filterRegex *regexp.Regexp) string {
-	return RenderRow(node, prefix, "", isSelected, width, filterRegex)
+func RenderNodeLine(node *filetree.FileNode, prefix string, isSelected bool, width int, filterRegex *regexp.Regexp, isCopied bool) string {
+	return RenderRow(node, prefix, "", isSelected, width, filterRegex, isCopied)
 }
 
 // RenderNodeLineWithDisplayName renders a single node line with a custom display name.
 // This is used for flat view where the full path is shown instead of just the name.
-func RenderNodeLineWithDisplayName(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int, filterRegex *regexp.Regexp) string {
-	return RenderRow(node, prefix, displayName, isSelected, width, filterRegex)
+func RenderNodeLineWithDisplayName(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int, filterRegex *regexp.Regexp, isCopied bool) string {
+	return RenderRow(node, prefix, displayName, isSelected, width, filterRegex, isCopied)
 }
 
 // smartTruncatePath сокращает путь, отдавая приоритет имени файла.

@@ -20,6 +20,7 @@ type KeyMap struct {
 	// Tree Control Keys
 	CollapseAll        key.Binding
 	ExpandAll          key.Binding
+	ToggleCollapse     key.Binding
 	ToggleAdded        key.Binding
 	ToggleRemoved      key.Binding
 	ToggleModified     key.Binding
@@ -61,6 +62,7 @@ var Keys = KeyMap{
 	// Tree control bindings
 	CollapseAll:      key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "collapse")),
 	ExpandAll:        key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "expand")),
+	ToggleCollapse:   key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "collapse/expand")),
 	ToggleAdded:      key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "added")),
 	ToggleRemoved:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "removed")),
 	ToggleModified:   key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "modified")),
