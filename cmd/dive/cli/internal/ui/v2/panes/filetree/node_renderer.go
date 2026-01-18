@@ -62,8 +62,11 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 	var sizeStr, uidGid, perm string
 
 	// Only compute strings if they will be shown (optimization)
-	if showSize && !node.Data.FileInfo.IsDir() {
-		size := node.Data.FileInfo.Size
+	if showSize {
+		// Use node.GetSize() for both files and directories
+		// For files: returns the file size
+		// For directories: recursively calculates total size of all children
+		size := node.GetSize()
 		if size >= 0 {
 			sizeStr = utils.FormatSize(uint64(size))
 		}

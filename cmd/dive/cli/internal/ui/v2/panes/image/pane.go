@@ -179,11 +179,12 @@ func (m *Pane) generateContent() string {
 	header.WriteString(styles.LayerHeaderStyle.Render("Image efficiency score:"))
 	header.WriteString(" ")
 	scoreStyle := styles.LayerValueStyle
-	if stats.EfficiencyScore >= 90 {
+	switch {
+	case stats.EfficiencyScore >= 90:
 		scoreStyle = scoreStyle.Foreground(styles.SuccessColor)
-	} else if stats.EfficiencyScore >= 70 {
+	case stats.EfficiencyScore >= 70:
 		scoreStyle = scoreStyle.Foreground(styles.HighlightColor)
-	} else {
+	default:
 		scoreStyle = scoreStyle.Foreground(styles.WarningColor)
 	}
 	header.WriteString(scoreStyle.Render(fmt.Sprintf("%.0f%%", stats.EfficiencyScore)))

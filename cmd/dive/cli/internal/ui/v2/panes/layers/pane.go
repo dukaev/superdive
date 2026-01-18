@@ -653,17 +653,8 @@ func (m *Pane) generateContent() string {
 			matchStyle := lipgloss.NewStyle().
 				Foreground(styles.HighlightColor).
 				Bold(true)
-
-			// If this row is also selected, we need to be careful about styling
-			// to avoid color conflicts with the selection background
-			if i == m.layerIndex {
-				// For selected row, keep the highlight color but it may blend with selection
-				// The selection background (PanelBgColor) should work with yellow text
-				prefix = matchStyle.Render(prefixStr)
-			} else {
-				// Normal row - just apply highlight
-				prefix = matchStyle.Render(prefixStr)
-			}
+			// Apply highlight style (works for both selected and normal rows)
+			prefix = matchStyle.Render(prefixStr)
 		} else {
 			// No matches - use normal styling
 			if i == m.layerIndex {

@@ -3,6 +3,8 @@ module github.com/wagoodman/dive
 go 1.24.2
 
 require (
+	charm.land/bubbles/v2 v2.0.0-rc.1
+	charm.land/bubbletea/v2 v2.0.0-rc.1.0.20251106192006-06c0cda318b3
 	github.com/anchore/clio v0.0.0-20250401141128-4c1d6bd1e872
 	github.com/anchore/go-logger v0.0.0-20250318195838-07ae343dd722
 	github.com/awesome-gocui/gocui v1.1.0
@@ -37,8 +39,6 @@ require (
 )
 
 require (
-	charm.land/bubbles/v2 v2.0.0-rc.1 // indirect
-	charm.land/bubbletea/v2 v2.0.0-rc.1.0.20251106192006-06c0cda318b3 // indirect
 	charm.land/lipgloss/v2 v2.0.0-beta.3.0.20251106192539-4b304240aab7 // indirect
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Microsoft/go-winio v0.4.14 // indirect

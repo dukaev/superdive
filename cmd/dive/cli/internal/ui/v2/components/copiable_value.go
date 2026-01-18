@@ -2,6 +2,7 @@ package components
 
 import (
 	"bytes"
+	"context"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -112,7 +113,7 @@ func (c CopiableValue) View() string {
 			// Pad icon to match the original value width
 			paddingNeeded := c.width - visualWidth
 			if paddingNeeded > 0 {
-				iconText = iconText + strings.Repeat(" ", paddingNeeded)
+				iconText += strings.Repeat(" ", paddingNeeded)
 			}
 		}
 		return lipgloss.NewStyle().
@@ -137,7 +138,7 @@ func (c CopiableValue) View() string {
 			// Pad with spaces on the right to match exact width
 			paddingNeeded := c.width - textWidth
 			if paddingNeeded > 0 {
-				text = text + strings.Repeat(" ", paddingNeeded)
+				text += strings.Repeat(" ", paddingNeeded)
 			}
 		}
 	}
@@ -166,21 +167,22 @@ func (c CopiableValue) GetVisualWidth() int {
 func copyToClipboard(text string) tea.Cmd {
 	return func() tea.Msg {
 		var cmd *exec.Cmd
+		ctx := context.Background()
 
 		switch runtime.GOOS {
 		case "darwin":
-			cmd = exec.Command("pbcopy")
+			cmd = exec.CommandContext(ctx, "pbcopy")
 		case "linux":
 			// Try xclip first, then wl-copy, then xsel
 			if _, err := exec.LookPath("xclip"); err == nil {
-				cmd = exec.Command("xclip", "-selection", "clipboard")
+				cmd = exec.CommandContext(ctx, "xclip", "-selection", "clipboard")
 			} else if _, err := exec.LookPath("wl-copy"); err == nil {
-				cmd = exec.Command("wl-copy")
+				cmd = exec.CommandContext(ctx, "wl-copy")
 			} else if _, err := exec.LookPath("xsel"); err == nil {
-				cmd = exec.Command("xsel", "--clipboard", "--input")
+				cmd = exec.CommandContext(ctx, "xsel", "--clipboard", "--input")
 			}
 		case "windows":
-			cmd = exec.Command("clip")
+			cmd = exec.CommandContext(ctx, "clip")
 		}
 
 		if cmd != nil {

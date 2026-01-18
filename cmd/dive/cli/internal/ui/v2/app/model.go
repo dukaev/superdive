@@ -264,7 +264,6 @@ func (m *Model) recalculateLayout() {
 // Update implements tea.Model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-	var handled bool // Track if message was already handled
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -290,7 +289,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, cmd)
 			}
 		}
-		handled = true
 
 		// Global key bindings
 		switch msg.String() {
@@ -392,7 +390,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.panes[PaneTree] = newTree
 		}
 		m.updateTreeForCurrentLayer()
-		handled = true
 
 	case filetreepane.NodeToggledMsg:
 		// Forward message to tree pane to refresh its visibleNodes cache
@@ -403,14 +400,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newPane, cmd := m.panes[PaneTree].Update(msg)
 		m.panes[PaneTree] = newPane
 		cmds = append(cmds, cmd)
-		handled = true
 
 	case filetreepane.RefreshTreeContentMsg:
 		// Request to refresh tree content
 		// POLYMORPHISM: Send message through interface, no type assertion
 		newPane, _ := m.panes[PaneTree].Update(filetreepane.UpdateViewModelMsg{TreeVM: m.treeVM})
 		m.panes[PaneTree] = newPane
-		handled = true
 
 	case tea.MouseMsg:
 		// BUBBLEZONE: Check which pane was clicked using zone hit testing
@@ -455,7 +450,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 		}
-		handled = true
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -483,19 +477,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			layoutCmds = append(layoutCmds, cmd)
 		}
 		cmds = append(cmds, layoutCmds...)
-		handled = true
 
 	default:
 		// Forward all OTHER messages (e.g., tickMsg from CopiableValue timers)
 		// to the active pane. This is critical for component internal timers to work.
 		// Without this, messages from child components are lost.
-		// IMPORTANT: Only forward if not already handled above to prevent double-processing
-		if !handled {
-			if activePane, ok := m.panes[m.activePane]; ok {
-				updatedPane, cmd := activePane.Update(msg)
-				m.panes[m.activePane] = updatedPane
-				cmds = append(cmds, cmd)
-			}
+		if activePane, ok := m.panes[m.activePane]; ok {
+			updatedPane, cmd := activePane.Update(msg)
+			m.panes[m.activePane] = updatedPane
+			cmds = append(cmds, cmd)
 		}
 	}
 
@@ -851,6 +841,10 @@ func (m Model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Empty pattern - clear filter
 				m.totalMatches = 0
 				m.currentMatch = -1
+
+				// CRITICAL: Apply empty filter to reset UI state
+				// This disables Flat mode, removes layer highlighting, and clears file highlighting
+				m.applyFilter("")
 			}
 
 			return m, cmd

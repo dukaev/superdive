@@ -2,6 +2,7 @@ package filetree
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -355,7 +356,7 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 			p.copyNoticePath = msg.Path
 			// copiedNodeIndex is already set by the right-click handler
 			// Hide notification after 2 seconds
-			return p, tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+			return p, tea.Tick(2*time.Second, func(_ time.Time) tea.Msg {
 				return HideCopyNoticeMsg{}
 			})
 		}
@@ -811,21 +812,22 @@ func (p *Pane) setExclusiveFilter(filterType string) {
 func copyPathToClipboard(path string) tea.Cmd {
 	return func() tea.Msg {
 		var cmd *exec.Cmd
+		ctx := context.Background()
 
 		switch runtime.GOOS {
 		case "darwin":
-			cmd = exec.Command("pbcopy")
+			cmd = exec.CommandContext(ctx, "pbcopy")
 		case "linux":
 			// Try xclip first, then wl-copy, then xsel
 			if _, err := exec.LookPath("xclip"); err == nil {
-				cmd = exec.Command("xclip", "-selection", "clipboard")
+				cmd = exec.CommandContext(ctx, "xclip", "-selection", "clipboard")
 			} else if _, err := exec.LookPath("wl-copy"); err == nil {
-				cmd = exec.Command("wl-copy")
+				cmd = exec.CommandContext(ctx, "wl-copy")
 			} else if _, err := exec.LookPath("xsel"); err == nil {
-				cmd = exec.Command("xsel", "--clipboard", "--input")
+				cmd = exec.CommandContext(ctx, "xsel", "--clipboard", "--input")
 			}
 		case "windows":
-			cmd = exec.Command("clip")
+			cmd = exec.CommandContext(ctx, "clip")
 		}
 
 		if cmd != nil {

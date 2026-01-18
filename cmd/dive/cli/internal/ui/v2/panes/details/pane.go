@@ -1,3 +1,4 @@
+// Package details provides the file details pane for displaying information about selected files.
 package details
 
 import (

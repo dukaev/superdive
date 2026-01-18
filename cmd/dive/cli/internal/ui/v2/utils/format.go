@@ -1,3 +1,4 @@
+// Package utils provides utility functions for formatting values used throughout the UI.
 package utils
 
 import "fmt"
