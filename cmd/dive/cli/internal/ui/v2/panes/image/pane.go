@@ -153,22 +153,53 @@ func (m *Pane) generateContent() string {
 	// Calculate stats using domain logic (pure function, no side effects)
 	stats := domain.CalculateImageStats(m.analysis)
 
-	// Header with statistics
-	headerText := fmt.Sprintf(
-		"Image name: %s\nTotal Image size: %s\nPotential wasted space: %s\nImage efficiency score: %.0f%%\nFiles > 0 KB total: %d",
-		stats.ImageName,
-		utils.FormatSize(stats.TotalSizeBytes),
-		utils.FormatSize(stats.WastedBytes),
-		stats.EfficiencyScore,
-		stats.FilesAboveZeroKB,
-	)
+	// Header with statistics - formatted with colors
+	var header strings.Builder
+
+	// Image name: %s
+	header.WriteString(styles.LayerHeaderStyle.Render("Image name:"))
+	header.WriteString(" ")
+	header.WriteString(styles.LayerValueStyle.Render(stats.ImageName))
+	header.WriteString("\n")
+
+	// Total Image size: %s
+	header.WriteString(styles.LayerHeaderStyle.Render("Total Image size:"))
+	header.WriteString(" ")
+	header.WriteString(styles.LayerValueStyle.Render(utils.FormatSize(stats.TotalSizeBytes)))
+	header.WriteString("\n")
+
+	// Potential wasted space: %s
+	header.WriteString(styles.LayerHeaderStyle.Render("Potential wasted space:"))
+	header.WriteString(" ")
+	wastedStyle := styles.LayerValueStyle.Foreground(styles.WarningColor)
+	header.WriteString(wastedStyle.Render(utils.FormatSize(stats.WastedBytes)))
+	header.WriteString("\n")
+
+	// Image efficiency score: %.0f%%
+	header.WriteString(styles.LayerHeaderStyle.Render("Image efficiency score:"))
+	header.WriteString(" ")
+	scoreStyle := styles.LayerValueStyle
+	if stats.EfficiencyScore >= 90 {
+		scoreStyle = scoreStyle.Foreground(styles.SuccessColor)
+	} else if stats.EfficiencyScore >= 70 {
+		scoreStyle = scoreStyle.Foreground(styles.HighlightColor)
+	} else {
+		scoreStyle = scoreStyle.Foreground(styles.WarningColor)
+	}
+	header.WriteString(scoreStyle.Render(fmt.Sprintf("%.0f%%", stats.EfficiencyScore)))
+	header.WriteString("\n")
+
+	// Files > 0 KB total: %d
+	header.WriteString(styles.LayerHeaderStyle.Render("Files > 0 KB total:"))
+	header.WriteString(" ")
+	header.WriteString(styles.LayerValueStyle.Render(fmt.Sprintf("%d", stats.FilesAboveZeroKB)))
 
 	// Table header
 	tableHeader := fmt.Sprintf("\n%-5s %-12s %s", "Count", "Total Space", "Path")
 
 	// Build full content with all rows
 	var fullContent strings.Builder
-	fullContent.WriteString(headerText)
+	fullContent.WriteString(header.String())
 	fullContent.WriteString("\n")
 	fullContent.WriteString(styles.LayerHeaderStyle.Render(tableHeader))
 	fullContent.WriteString("\n")
@@ -185,7 +216,7 @@ func (m *Pane) generateContent() string {
 			}
 		}
 	} else {
-		fullContent.WriteString("No inefficiencies detected - great job!")
+		fullContent.WriteString(styles.LayerValueStyle.Render("No inefficiencies detected - great job!"))
 	}
 
 	return fullContent.String()

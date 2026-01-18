@@ -334,13 +334,13 @@ func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 		}
 
 	case common.LocalMouseMsg:
-		// Mouse coordinates are relative to the marked zone (includes borders + title)
+		// Mouse coordinates are relative to the marked zone (includes borders)
 		// We need to subtract visual offsets to get content coordinates
 		if msg.Action == tea.MouseActionPress {
 			// Content offsets relative to the panel:
-			// Y: 1 (top border) + 1 (box title) + 1 (header) + 1 (space padding) = 4
+			// Y: 1 (top border with title) + 1 (table header) = 2
 			// X: 1 (left border)
-			const contentOffsetY = 4
+			const contentOffsetY = 2
 			const contentOffsetX = 1
 
 			// Adjust coordinates to be relative to content area
@@ -492,11 +492,11 @@ func (m *Pane) getCommandColumnPosition() (int, int) {
 // handleClick processes a left mouse click with CONTENT-RELATIVE coordinates
 // x, y are provided by the caller after adjusting for visual offsets:
 // - x: relative to content area (X=0 is first column of content, after left border)
-// - y: relative to content area (Y=0 is first line of content, after title+padding)
+// - y: relative to content area (Y=0 is first line of content, after border + table header)
 //
 // The caller has already subtracted:
 //   - contentOffsetX (left border)
-//   - contentOffsetY (top border + title + padding)
+//   - contentOffsetY (top border + table header, title is embedded in border)
 //
 // Left click always selects the layer (copy is done via right click)
 func (m *Pane) handleClick(_ int, y int) tea.Cmd {

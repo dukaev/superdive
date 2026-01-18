@@ -258,12 +258,10 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 			// Handle Left Click (Selection)
 			if mouseMsg.Button == tea.MouseButtonLeft {
 				// Calculate Y offset for the content
-				// Y=0: Border Top
-				// Y=1: Title
-				// Y=2: Padding (Space)
-				// Y=3: Table Header (RenderHeader)
-				// Y=4: Content Start
-				const contentOffsetY = 4
+				// Y=0: Border Top (title is embedded in border)
+				// Y=1: Table Header (RenderHeader)
+				// Y=2: Content Start
+				const contentOffsetY = 2
 
 				// Calculate which row was clicked relative to viewport top
 				clickY := msg.LocalY - contentOffsetY

@@ -1,7 +1,6 @@
 package details
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -142,12 +141,19 @@ func (m Pane) generateContent() string {
 		if lipgloss.Width(tags) > m.width-8 {
 			tags = runewidth.Truncate(tags, m.width-8, "...")
 		}
-		lines = append(lines, styles.LayerHeaderStyle.Render(fmt.Sprintf("Tags: %s", tags)))
+		label := styles.LayerHeaderStyle.Render("Tags:")
+		value := styles.LayerValueStyle.Render(tags)
+		lines = append(lines, label+" "+value)
 	}
 
 	// ID & Size
-	lines = append(lines, styles.LayerValueStyle.Render(fmt.Sprintf("Id: %s", layer.Id)))
-	lines = append(lines, styles.LayerValueStyle.Render(fmt.Sprintf("Size: %s", utils.FormatSize(layer.Size))))
+	idLabel := styles.LayerHeaderStyle.Render("Id:")
+	idValue := styles.LayerValueStyle.Render(layer.Id)
+	lines = append(lines, idLabel+" "+idValue)
+
+	sizeLabel := styles.LayerHeaderStyle.Render("Size:")
+	sizeValue := styles.LayerValueStyle.Render(utils.FormatSize(layer.Size))
+	lines = append(lines, sizeLabel+" "+sizeValue)
 
 	// Digest
 	if layer.Digest != "" {
@@ -160,15 +166,21 @@ func (m Pane) generateContent() string {
 		if lipgloss.Width(digest) > maxDigestWidth {
 			digest = runewidth.Truncate(digest, maxDigestWidth, "...")
 		}
-		lines = append(lines, styles.LayerValueStyle.Render(fmt.Sprintf("Digest: %s", digest)))
+		digestLabel := styles.LayerHeaderStyle.Render("Digest:")
+		digestValue := styles.LayerValueStyle.Render(digest)
+		lines = append(lines, digestLabel+" "+digestValue)
 	}
 
 	// Command
-	lines = append(lines, styles.LayerHeaderStyle.Render("Command:"))
-
 	if layer.Command == "" {
-		lines = append(lines, styles.LayerValueStyle.Render("(unavailable)"))
+		cmdLabel := styles.LayerHeaderStyle.Render("Command:")
+		cmdValue := styles.LayerValueStyle.Render("(unavailable)")
+		lines = append(lines, cmdLabel+" "+cmdValue)
 	} else {
+		// Add header
+		cmdLabel := styles.LayerHeaderStyle.Render("Command:")
+		lines = append(lines, cmdLabel)
+
 		maxWidth := m.width - 4
 		if maxWidth < 10 {
 			maxWidth = 10
