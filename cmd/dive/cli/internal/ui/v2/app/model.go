@@ -177,7 +177,7 @@ func NewModel(ctx context.Context, analysis image.Analysis, content image.Conten
 		width:        80,
 		height:       24,
 		quitting:     false,
-		activePane:   PaneLayer,
+		activePane:   PaneTree,
 		searching:    false,
 		searchInput:  ti,
 		currentMatch: -1,
@@ -230,6 +230,14 @@ func (m Model) Init() tea.Cmd {
 			// POLYMORPHISM: Update pane through interface, no type assertion
 			newDetails, _ := m.panes[PaneDetails].Update(layerMsg)
 			m.panes[PaneDetails] = newDetails
+
+			// Update tree pane with layer info for title
+			layerInfoMsg := filetreepane.SetLayerInfoMsg{
+				LayerIndex: layerIndex,
+				TotalLayers: len(m.layerVM.Layers),
+			}
+			newTree, _ := m.panes[PaneTree].Update(layerInfoMsg)
+			m.panes[PaneTree] = newTree
 		}
 	}
 
@@ -291,9 +299,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "esc":
-			// ESC only quits if not searching (searching handles ESC separately)
+			// UX Improvement: If filter is active (there's text in search),
+			// first Esc clears the filter.
+			// Second Esc (when filter is empty) quits the application.
+			if m.searchInput.Value() != "" {
+				m.clearFilter()
+				return m, nil
+			}
+
+			// If no filter - quit
 			m.quitting = true
 			return m, tea.Quit
+
+		case "backspace":
+			// UX Improvement: Backspace also clears an active filter
+			// when in navigation mode (not in search input mode).
+			if !m.searching && m.searchInput.Value() != "" {
+				m.clearFilter()
+				return m, nil
+			}
+			// If no filter or in search mode, backspace does nothing globally
 
 		case "tab", "shift+tab":
 			m.togglePane()
@@ -308,6 +333,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentMatch = -1
 			m.totalMatches = 0
 			return m, nil
+
+		// Tree filter keys - work regardless of which pane is focused
+		case "a", "r", "m", "u":
+			// Forward to tree pane for filtering
+			// BUGFIX: Only forward if tree is NOT focused.
+			// If tree is focused, it already handled the key in the "Route keys to focused pane" block above.
+			if m.activePane != PaneTree {
+				if treePane, ok := m.panes[PaneTree]; ok {
+					updatedPane, cmd := treePane.Update(msg)
+					m.panes[PaneTree] = updatedPane
+					cmds = append(cmds, cmd)
+				}
+			}
+
+		// Tree folding controls - work regardless of which pane is focused
+		case "C", "O":
+			// Forward to tree pane for collapse/expand
+			// BUGFIX: Same as above - avoid double-toggle
+			if m.activePane != PaneTree {
+				if treePane, ok := m.panes[PaneTree]; ok {
+					updatedPane, cmd := treePane.Update(msg)
+					m.panes[PaneTree] = updatedPane
+					cmds = append(cmds, cmd)
+				}
+			}
+
+		// Layer navigation keys - work regardless of which pane is focused
+		case "[", "]":
+			// Forward to layers pane for layer navigation
+			// BUGFIX: Only forward if layers is NOT focused to avoid double-processing
+			if m.activePane != PaneLayer {
+				if layersPane, ok := m.panes[PaneLayer]; ok {
+					updatedPane, cmd := layersPane.Update(msg)
+					m.panes[PaneLayer] = updatedPane
+					cmds = append(cmds, cmd)
+				}
+			}
 		}
 
 	case layers.LayerChangedMsg:
@@ -320,6 +382,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// POLYMORPHISM: Update through interface
 			newDetails, _ := m.panes[PaneDetails].Update(layerMsg)
 			m.panes[PaneDetails] = newDetails
+
+			// Update tree pane with layer info for title
+			layerInfoMsg := filetreepane.SetLayerInfoMsg{
+				LayerIndex: msg.LayerIndex,
+				TotalLayers: len(m.layerVM.Layers),
+			}
+			newTree, _ := m.panes[PaneTree].Update(layerInfoMsg)
+			m.panes[PaneTree] = newTree
 		}
 		m.updateTreeForCurrentLayer()
 		handled = true
@@ -492,6 +562,20 @@ func (m *Model) updateTreeForCurrentLayer() {
 	m.panes[PaneTree] = newPane
 }
 
+// clearFilter resets the search, clears the input field, and returns the tree to its initial state
+func (m *Model) clearFilter() {
+	m.searching = false
+	m.searchInput.Blur()
+	m.searchInput.SetValue("")
+	m.currentMatch = -1
+	m.totalMatches = 0
+	m.applyFilter("") // Resets filter in tree and disables flat mode
+
+	// Return focus to tree since it's the main content area
+	m.activePane = PaneTree
+	m.sendFocusStates()
+}
+
 // View implements tea.Model (PURE FUNCTION - no side effects!)
 func (m Model) View() string {
 	if m.quitting {
@@ -551,8 +635,9 @@ func (m Model) View() string {
 			}
 		}
 
-		// Join: styled prompt + styled input + counter
+		// Join: icon + styled prompt + styled input + counter
 		statusBar = lipgloss.JoinHorizontal(lipgloss.Left,
+			styles.SearchPrefixStyle.Render(" \uf002 "), // Search icon (font-awesome)
 			styles.SearchPrefixStyle.Render("Filter: "),
 			styledInput,
 			matchCounter,
@@ -560,7 +645,8 @@ func (m Model) View() string {
 		// Fill the rest of the line
 		statusBar = lipgloss.NewStyle().Width(m.width).MaxWidth(m.width).Render(statusBar)
 	} else {
-		statusBar = m.help.View(keyMapWrapper{keys: allKeys})
+		// Add space margin before help panel (same as search bar)
+		statusBar = " " + m.help.View(keyMapWrapper{keys: allKeys})
 	}
 
 	// Render panes directly using their View() methods
@@ -706,16 +792,8 @@ func (m Model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "esc":
-			// Exit search mode, clear filter
-			m.searching = false
-			m.searchInput.Blur()
-			m.searchInput.SetValue("")
-			m.currentMatch = -1
-			m.totalMatches = 0
-			m.applyFilter("") // Clear filter
-			// Disable flat mode
-			newPane, _ := m.panes[PaneTree].Update(filetreepane.SetFlatModeMsg{Flat: false})
-			m.panes[PaneTree] = newPane
+			// Use shared method to clear filter and exit search mode
+			m.clearFilter()
 			return m, nil
 
 		// REMOVED: case "n" - was blocking input of letter 'n' (e.g., "nginx", "kernel")

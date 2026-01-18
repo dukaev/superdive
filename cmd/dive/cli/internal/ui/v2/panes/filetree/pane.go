@@ -1,6 +1,7 @@
 package filetree
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -56,6 +57,12 @@ type SetFilterRegexMsg struct {
 	Regex *regexp.Regexp
 }
 
+// SetLayerInfoMsg is sent to update layer information for title display
+type SetLayerInfoMsg struct {
+	LayerIndex int // Current layer index (0-based)
+	TotalLayers int
+}
+
 // Pane manages the file tree using viewport for smooth scrolling
 type Pane struct {
 	focused bool
@@ -72,6 +79,10 @@ type Pane struct {
 	scrollOff   int            // Number of lines to keep visible above/below cursor (scrolloff)
 	flatMode    bool           // true = Flat View, false = Tree View
 	filterRegex *regexp.Regexp // Active filter regex for highlighting and clean search
+
+	// Layer information for title display
+	currentLayerIndex int // Current layer index (0-based)
+	totalLayers       int // Total number of layers
 
 	// Diff type filter states (default: show all)
 	showAdded      bool
@@ -170,11 +181,39 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 		return p, nil
 
 	case tea.KeyMsg:
+		// 1. First handle GLOBAL keys (work without focus)
+		// These keys can be forwarded from app/model.go, even when pane is not active
+		switch msg.String() {
+		// Diff type filter toggles (exclusive/radio button behavior)
+		case "a":
+			p.setExclusiveFilter("added")
+			return p, nil
+		case "r":
+			p.setExclusiveFilter("removed")
+			return p, nil
+		case "m":
+			p.setExclusiveFilter("modified")
+			return p, nil
+		case "u":
+			p.setExclusiveFilter("unmodified")
+			return p, nil
+		// Tree folding controls
+		case "C":
+			p.setAllCollapsed(true)
+			p.rebuildNodes()
+			return p, nil
+		case "O":
+			p.setAllCollapsed(false)
+			p.rebuildNodes()
+			return p, nil
+		}
+
+		// 2. If pane is NOT focused, ignore the rest of keys (navigation)
 		if !p.focused {
 			return p, nil
 		}
 
-		// Handle keyboard navigation
+		// 3. Handle navigation (only when focused)
 		switch msg.String() {
 		case "up", "k":
 			p.moveCursor(-1)
@@ -194,32 +233,6 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 			return p, p.handleLeftKey()
 		case "f":
 			p.flatMode = !p.flatMode
-			p.rebuildNodes()
-			return p, nil
-		// Tree folding controls
-		case "C":
-			p.setAllCollapsed(true)
-			p.rebuildNodes()
-			return p, nil
-		case "O":
-			p.setAllCollapsed(false)
-			p.rebuildNodes()
-			return p, nil
-		// Diff type filter toggles
-		case "a":
-			p.showAdded = !p.showAdded
-			p.rebuildNodes()
-			return p, nil
-		case "r":
-			p.showRemoved = !p.showRemoved
-			p.rebuildNodes()
-			return p, nil
-		case "m":
-			p.showModified = !p.showModified
-			p.rebuildNodes()
-			return p, nil
-		case "u":
-			p.showUnmodified = !p.showUnmodified
 			p.rebuildNodes()
 			return p, nil
 		}
@@ -305,6 +318,12 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 			p.rebuildNodes()
 		}
 		return p, nil
+
+	case SetLayerInfoMsg:
+		// Update layer information for title display
+		p.currentLayerIndex = msg.LayerIndex
+		p.totalLayers = msg.TotalLayers
+		return p, nil
 	}
 
 	// Update viewport
@@ -328,7 +347,44 @@ func (p Pane) View() string {
 	fullContent := lipgloss.JoinVertical(lipgloss.Left, header, content)
 
 	// 3. Build title based on current mode
-	title := "Current Layer Contents"
+	baseTitle := "Current Layer Contents"
+
+	// Add layer number if we have layer info
+	if p.totalLayers > 0 {
+		layerNum := p.currentLayerIndex + 1 // Convert to 1-based
+		baseTitle = fmt.Sprintf("[%d/%d] %s", layerNum, p.totalLayers, baseTitle)
+	}
+
+	// Visualize filters in title: [A---] for only Added, [--M-] for only Modified, etc.
+	filters := ""
+	if p.showAdded {
+		filters += "A"
+	} else {
+		filters += "-"
+	}
+	if p.showRemoved {
+		filters += "R"
+	} else {
+		filters += "-"
+	}
+	if p.showModified {
+		filters += "M"
+	} else {
+		filters += "-"
+	}
+	if p.showUnmodified {
+		filters += "U"
+	} else {
+		filters += "-"
+	}
+
+	// Build final title
+	title := baseTitle
+	// If filters are not all enabled, show filter indicator in title
+	if filters != "ARMU" {
+		title = fmt.Sprintf("[%d/%d] Layer Contents [%s]", p.currentLayerIndex+1, p.totalLayers, filters)
+	}
+
 	if p.flatMode {
 		title += " (Flat)"
 	}
@@ -590,14 +646,54 @@ func (p *Pane) GetFilterState() (showAdded, showRemoved, showModified, showUnmod
 	return p.showAdded, p.showRemoved, p.showModified, p.showUnmodified
 }
 
+// setExclusiveFilter enables "solo" mode for the selected filter type.
+// If this type is already in solo mode, resets to show all files.
+// This provides radio-button-like behavior instead of toggle/checkbox.
+func (p *Pane) setExclusiveFilter(filterType string) {
+	// Check if currently ONLY this filter is enabled
+	isOnlyAdded := p.showAdded && !p.showRemoved && !p.showModified && !p.showUnmodified
+	isOnlyRemoved := !p.showAdded && p.showRemoved && !p.showModified && !p.showUnmodified
+	isOnlyModified := !p.showAdded && !p.showRemoved && p.showModified && !p.showUnmodified
+	isOnlyUnmodified := !p.showAdded && !p.showRemoved && !p.showModified && p.showUnmodified
+
+	var currentlyExclusive bool
+	switch filterType {
+	case "added":
+		currentlyExclusive = isOnlyAdded
+	case "removed":
+		currentlyExclusive = isOnlyRemoved
+	case "modified":
+		currentlyExclusive = isOnlyModified
+	case "unmodified":
+		currentlyExclusive = isOnlyUnmodified
+	}
+
+	if currentlyExclusive {
+		// If already in "only this" mode, press again -> RESET (show all)
+		p.showAdded = true
+		p.showRemoved = true
+		p.showModified = true
+		p.showUnmodified = true
+	} else {
+		// Otherwise -> ENABLE ONLY THIS
+		p.showAdded = (filterType == "added")
+		p.showRemoved = (filterType == "removed")
+		p.showModified = (filterType == "modified")
+		p.showUnmodified = (filterType == "unmodified")
+	}
+
+	// Rebuild the tree
+	p.rebuildNodes()
+}
+
 // ShortHelp returns key bindings specific to the file tree pane.
 // File tree has unique navigation keys for collapsing/expanding folders.
+// Note: ToggleView is NOT included here since it's already in global keys (keys.ShortHelp())
 func (p *Pane) ShortHelp() []key.Binding {
 	return []key.Binding{
 		keys.Keys.ToggleAdded,      // Toggle added files
 		keys.Keys.ToggleRemoved,    // Toggle removed files
 		keys.Keys.ToggleModified,   // Toggle modified files
 		keys.Keys.ToggleUnmodified, // Toggle unmodified files
-		keys.Keys.ToggleView,       // Toggle flat/tree view
 	}
 }

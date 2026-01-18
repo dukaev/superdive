@@ -4,9 +4,9 @@ package layout
 // Layout constants for viewport calculations
 const (
 	BorderHeight        = 2                           // Top + Bottom border lines
-	HeaderHeight        = 2                           // Title line + newline/padding separator
+	HeaderHeight        = 0                           // Title is now on border (BorderLabel), not inside content
 	BoxContentPadding   = BorderHeight + HeaderHeight // Total padding inside RenderBox
-	ContentVisualOffset = 3                           // Offset for mouse hit testing: 1 border + 1 title + 1 padding
+	ContentVisualOffset = 1                           // Offset for mouse hit testing: 1 border line only
 
 	// Additional header heights for specific panes
 	TreeTableHeaderHeight = 3 // "Name   Size   Permissions" table header

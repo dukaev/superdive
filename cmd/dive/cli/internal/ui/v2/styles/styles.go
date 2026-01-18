@@ -1,6 +1,8 @@
 package styles
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 )
@@ -75,8 +77,8 @@ var FileStatsRemovedStyle = lipgloss.NewStyle().
 
 // --- Rendering Functions ---
 
-// RenderBox creates a bordered box with title and content
-// IMPORTANT: Truncates title to guarantee single line height
+// RenderBox creates a bordered box with title embedded in the border
+// IMPORTANT: Title is rendered directly on the top border, not inside content area
 func RenderBox(title string, width, height int, content string, isSelected bool) string {
 	// 1. Protect minimum sizes
 	if width < 2 {
@@ -91,40 +93,64 @@ func RenderBox(title string, width, height int, content string, isSelected bool)
 		borderColor = PrimaryColor
 	}
 
+	// 2. Truncate title to prevent breaking the border
+	maxTitleWidth := width - 4
+	if maxTitleWidth < 0 {
+		maxTitleWidth = 0
+	}
+	truncatedTitle := runewidth.Truncate(title, maxTitleWidth, "…")
+
+	// 3. Create base box style and render content
 	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
 		Width(width - 2).
 		Height(height - 2)
 
-	if title == "" {
-		if content == "" {
-			content = " "
-		}
+	if content == "" {
+		content = " "
+	}
+
+	// 4. If no title, render normally
+	if truncatedTitle == "" {
 		return boxStyle.Render(content)
 	}
 
-	// 2. Truncate title to prevent wrapping to 2 lines
-	// Title width: Window width - 2 (borders) - 2 (margin)
-	maxTitleWidth := width - 4
-	if maxTitleWidth < 0 {
-		maxTitleWidth = 0
+	// 5. Render box with title on top border
+	// First render standard box
+	rendered := boxStyle.Render(content)
+
+	// Split into lines
+	lines := strings.Split(rendered, "\n")
+	if len(lines) == 0 {
+		return rendered
 	}
 
-	truncatedTitle := runewidth.Truncate(title, maxTitleWidth, "…")
+	// Replace top border line with title version
+	titleStyle := lipgloss.NewStyle().Foreground(borderColor).Bold(true)
+	if isSelected {
+		titleStyle = titleStyle.Foreground(PrimaryColor)
+	}
 
-	// 3. Render title
-	titleStyle := lipgloss.NewStyle().
-		Foreground(borderColor).
-		Bold(true)
+	titleWidth := runewidth.StringWidth(truncatedTitle)
+	borderFillWidth := width - titleWidth - 4
+	if borderFillWidth < 0 {
+		borderFillWidth = 0
+	}
 
-	titleLine := titleStyle.Render(truncatedTitle)
+	// Build new top border: ╭─title───╮
+	// Render each part separately to preserve colors
+	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
+	leftPart := borderStyle.Render("╭─")
+	titlePart := titleStyle.Render(truncatedTitle)
+	rightPart := borderStyle.Render("─" + strings.Repeat("─", borderFillWidth) + "╮")
 
-	// 4. Assemble content: Title + Space + Data
-	// Using " " (space) to guarantee 1 line height for padding
-	innerContent := lipgloss.JoinVertical(lipgloss.Left, titleLine, " ", content)
+	topBorder := leftPart + titlePart + rightPart
 
-	return boxStyle.Render(innerContent)
+	// Replace first line
+	lines[0] = topBorder
+
+	return strings.Join(lines, "\n")
 }
 
 // --- Utility Functions ---
@@ -152,19 +178,13 @@ var HelpStyle = lipgloss.NewStyle().
 
 // SearchPrefixStyle for the "Filter:" prefix in search bar
 var SearchPrefixStyle = lipgloss.NewStyle().
-	Foreground(PanelBgColor). // Dark text
-	Background(PrimaryColor). // Accent background (blue)
-	Bold(true).
-	Padding(0, 1)
+	Foreground(PrimaryColor). // Blue text (accent color)
+	Bold(true)
 
-// SearchInputStyle for the search input text (blue like the prefix)
+// SearchInputStyle for the search input text (yellow for visibility)
 var SearchInputStyle = lipgloss.NewStyle().
-	Foreground(PrimaryColor).     // Blue text (accent color)
-	Background(StatusBarBgColor). // Dark gray status bar background
-	Padding(0, 1)
+	Foreground(HighlightColor) // Yellow text (highlight color)
 
 // SearchErrorStyle for invalid regex indication
 var SearchErrorStyle = lipgloss.NewStyle().
-	Foreground(ErrorColor). // Red text on error
-	Background(StatusBarBgColor).
-	Padding(0, 1)
+	Foreground(ErrorColor) // Red text on error
