@@ -638,28 +638,34 @@ func (m *Pane) generateContent() string {
 		// Format: current/total (without brackets)
 		totalLayers := len(m.layerVM.Layers)
 		prefixStr := fmt.Sprintf("%d/%d ", i+1, totalLayers)
-		style := lipgloss.NewStyle()
-
-		if i == m.layerIndex {
-			// Highlight entire row width, not just text
-			style = styles.SelectedLayerStyle
-		}
 
 		// HIGHLIGHT LAYERS WITH MATCHING FILES
-		// If this layer contains files matching the search filter, highlight the prefix in yellow
-		var prefix string
-		if m.matchedLayers[i] {
-			// Layer contains matching files - use highlight color (yellow) and bold
-			matchStyle := lipgloss.NewStyle().
-				Foreground(styles.HighlightColor).
-				Bold(true)
-			// Apply highlight style (works for both selected and normal rows)
-			prefix = matchStyle.Render(prefixStr)
+		// Determine if this layer contains matching files
+		layerIsMatched := m.matchedLayers[i]
+
+		// Build the style for this row
+		style := lipgloss.NewStyle()
+		prefix := prefixStr // Start with plain prefix
+
+		if i == m.layerIndex {
+			// Selected row - use selection background
+			// If matched, use yellow foreground; otherwise use normal primary color
+			if layerIsMatched {
+				style = lipgloss.NewStyle().
+					Bold(true).
+					Foreground(styles.HighlightColor).  // Yellow for matched layers
+					Background(styles.SelectionBgColor)
+				// Keep prefix plain, will be styled with row
+			} else {
+				style = styles.SelectedLayerStyle
+				// Keep prefix plain, will be styled with row
+			}
 		} else {
-			// No matches - use normal styling
-			if i == m.layerIndex {
-				// Selected row - apply selection style to prefix
-				prefix = style.Render(prefixStr)
+			// Not selected - style prefix individually
+			if layerIsMatched {
+				// Layer contains matching files - use highlight color (yellow) and bold
+				matchStyle := lipgloss.NewStyle().Foreground(styles.HighlightColor).Bold(true)
+				prefix = matchStyle.Render(prefixStr)
 			} else {
 				// Normal row - use muted color
 				prefix = styles.MetaDataStyle.Render(prefixStr)
@@ -855,7 +861,8 @@ func (m *Pane) generateContent() string {
 
 		// Pad to full width for selected layer to ensure background fills entire row
 		if i == m.layerIndex {
-			textWidth := runewidth.StringWidth(text)
+			// Use lipgloss.Width which correctly handles ANSI color codes
+			textWidth := lipgloss.Width(text)
 			// FIX: width is already (m.width - 2), so don't subtract 2 again
 			padding := width - textWidth
 			if padding > 0 {
@@ -863,7 +870,12 @@ func (m *Pane) generateContent() string {
 			}
 		}
 
-		fullContent.WriteString(style.Render(text))
+		// Apply style to the entire row
+		// For selected rows, style includes background color
+		// For matched selected rows, style includes yellow foreground + background
+		// For normal rows, style is empty
+		styledText := style.Render(text)
+		fullContent.WriteString(styledText)
 		fullContent.WriteString("\n")
 	}
 
