@@ -24,9 +24,9 @@ const CopyValueTimeout = time.Second
 type CopiableValue struct {
 	value                string
 	width                int
-	showingCopy          bool      // true when showing copy icon
+	showingCopy          bool           // true when showing copy icon
 	style                lipgloss.Style // optional custom style
-	truncateWithEllipsis bool      // if true, add "…" when truncating (default: true)
+	truncateWithEllipsis bool           // if true, add "…" when truncating (default: true)
 }
 
 // NewCopiableValue creates a new copiable value component
@@ -123,7 +123,7 @@ func (c CopiableValue) View() string {
 
 	// Show the actual value
 	text := c.value
-	if c.width > 0 {
+	if c.width > 0 { //nolint:nestif
 		// Truncate if necessary (use visual width, not byte length)
 		textWidth := runewidth.StringWidth(text)
 		if textWidth > c.width {

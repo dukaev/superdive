@@ -70,6 +70,8 @@ linters-settings:
       - name: error-return
         severity: warning
       - name: var-naming
+        disabled: true # Allow "common" and "utils" package names
+      - name: exported
         severity: warning
 
   gocritic:
@@ -99,7 +101,7 @@ issues:
   exclude-dirs:
     - vendor
   exclude-rules:
-    - path: _test\.go
+    - source: "TestCalculateImageStats"
       linters:
         - gocyclo
         - errcheck
@@ -108,6 +110,7 @@ issues:
         - goconst
         - gosec     # Security is less critical in tests (hardcoded credentials ok)
         - noctx     # Context is often not needed in tests
+        - gocognit  # Tests can have higher complexity
 
 run:
   timeout: 5m

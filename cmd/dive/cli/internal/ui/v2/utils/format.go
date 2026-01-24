@@ -1,4 +1,6 @@
 // Package utils provides utility functions for formatting values used throughout the UI.
+//
+//revive:disable:var-naming
 package utils
 
 import "fmt"

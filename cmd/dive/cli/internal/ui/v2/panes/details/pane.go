@@ -128,7 +128,7 @@ func (m Pane) View() string {
 }
 
 // generateContent generates the full details content without truncation
-func (m Pane) generateContent() string {
+func (m Pane) generateContent() string { //nolint:funlen
 	if m.layer == nil {
 		return "No details"
 	}

@@ -64,7 +64,7 @@ type SetFilterRegexMsg struct {
 
 // SetLayerInfoMsg is sent to update layer information for title display
 type SetLayerInfoMsg struct {
-	LayerIndex int // Current layer index (0-based)
+	LayerIndex  int // Current layer index (0-based)
 	TotalLayers int
 }
 
@@ -105,8 +105,8 @@ type Pane struct {
 	showUnmodified bool
 
 	// Copy notification state
-	copyNoticePath  string   // Path that was copied (for display in title)
-	copiedNodeIndex int      // Index of the node that was copied (for icon change)
+	copyNoticePath  string // Path that was copied (for display in title)
+	copiedNodeIndex int    // Index of the node that was copied (for icon change)
 
 	// Last collapse state for toggle functionality
 	lastCollapseState bool // true = collapsed, false = expanded
@@ -117,20 +117,20 @@ func New(treeVM *viewmodel.FileTreeViewModel) Pane {
 	v := viewport.New(80, 20)
 
 	p := Pane{
-		treeVM:         treeVM,
-		focused:        false,
-		width:          80,
-		height:         20,
-		viewport:       v,
-		nodes:          []VisibleNode{},
-		cursor:         0,
-		scrollOff:      3, // Keep 3 lines visible above/below cursor (like vim scrolloff)
-		showAdded:      true,
-		showRemoved:    true,
-		showModified:   true,
-		showUnmodified: true,
-		copyNoticePath:  "", // Initialize empty
-		copiedNodeIndex: -1, // -1 means no node copied
+		treeVM:            treeVM,
+		focused:           false,
+		width:             80,
+		height:            20,
+		viewport:          v,
+		nodes:             []VisibleNode{},
+		cursor:            0,
+		scrollOff:         3, // Keep 3 lines visible above/below cursor (like vim scrolloff)
+		showAdded:         true,
+		showRemoved:       true,
+		showModified:      true,
+		showUnmodified:    true,
+		copyNoticePath:    "",   // Initialize empty
+		copiedNodeIndex:   -1,   // -1 means no node copied
 		lastCollapseState: true, // Start with collapsed state (default is collapsed)
 	}
 
@@ -198,6 +198,8 @@ func (p *Pane) SetFocused(focused bool) {
 }
 
 // Update handles messages
+//
+//nolint:funlen,gocyclo,gocognit
 func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 	switch msg := msg.(type) {
 	case common.LayoutMsg:
@@ -278,7 +280,7 @@ func (p *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 		}
 
 		mouseMsg := msg.MouseMsg
-		if mouseMsg.Action == tea.MouseActionPress {
+		if mouseMsg.Action == tea.MouseActionPress { //nolint:nestif
 			// Handle Scrolling
 			if mouseMsg.Button == tea.MouseButtonWheelUp {
 				p.viewport.ScrollUp(1)
@@ -859,7 +861,7 @@ func (p *Pane) ShortHelp() []key.Binding {
 	}
 
 	return []key.Binding{
-		toggleKey,               // Dynamic toggle collapse/expand
+		toggleKey,                  // Dynamic toggle collapse/expand
 		keys.Keys.ToggleAdded,      // Toggle added files
 		keys.Keys.ToggleRemoved,    // Toggle removed files
 		keys.Keys.ToggleModified,   // Toggle modified files

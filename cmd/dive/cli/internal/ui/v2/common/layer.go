@@ -1,4 +1,6 @@
 // Package common provides shared types and messages for UI panes
+//
+//revive:disable:var-naming
 package common
 
 import (

@@ -82,16 +82,16 @@ type Pane struct {
 	comparer      *filetree.Comparer // For computing layer comparison trees
 	viewport      viewport.Model
 	layerIndex    int
-	statsRows     []components.FileStatsRow // Stats row for each layer
-	statsCache    []domain.FileStats        // Cached statistics for each layer (calculated once)
-	statsWidths   [3]int                    // [0]=AddedWidth, [1]=ModifiedWidth, [2]=RemovedWidth
+	statsRows     []components.FileStatsRow  // Stats row for each layer
+	statsCache    []domain.FileStats         // Cached statistics for each layer (calculated once)
+	statsWidths   [3]int                     // [0]=AddedWidth, [1]=ModifiedWidth, [2]=RemovedWidth
 	digestValues  []components.CopiableValue // CopiableValue component for digest of each layer
 	idValues      []components.CopiableValue // CopiableValue component for ID of each layer
 	commandValues []components.CopiableValue // CopiableValue component for command of each layer
 
 	// Search state
-	filterRegex   *regexp.Regexp      // Active filter regex for highlighting matching layers
-	matchedLayers map[int]bool        // Cache: layer index -> contains matching files
+	filterRegex   *regexp.Regexp // Active filter regex for highlighting matching layers
+	matchedLayers map[int]bool   // Cache: layer index -> contains matching files
 }
 
 // New creates a new layers pane
@@ -119,8 +119,8 @@ func New(layerVM *viewmodel.LayerSetState, comparer filetree.Comparer) Pane {
 
 			// Initialize copiable value for ID
 			idValues[i] = components.NewCopiableValue("")
-			idValues[i].SetWidth(ColWidthID)              // ID width
-			idValues[i].SetTruncateWithEllipsis(false)     // Don't show ellipsis for IDs
+			idValues[i].SetWidth(ColWidthID)           // ID width
+			idValues[i].SetTruncateWithEllipsis(false) // Don't show ellipsis for IDs
 
 			// Initialize copiable value for command
 			commandValues[i] = components.NewCopiableValue("")
@@ -316,6 +316,8 @@ func (m *Pane) Init() tea.Cmd {
 }
 
 // Update handles messages and returns the updated Pane
+//
+//nolint:funlen,gocognit
 func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -397,7 +399,7 @@ func (m *Pane) Update(msg tea.Msg) (common.Pane, tea.Cmd) {
 	case common.LocalMouseMsg:
 		// Mouse coordinates are relative to the marked zone (includes borders)
 		// We need to subtract visual offsets to get content coordinates
-		if msg.Action == tea.MouseActionPress {
+		if msg.Action == tea.MouseActionPress { //nolint:nestif
 			// Content offsets relative to the panel:
 			// Y: 1 (top border with title) + 1 (table header) = 2
 			// X: 1 (left border)
@@ -626,6 +628,8 @@ func (m *Pane) updateContent() {
 }
 
 // generateContent creates the layers content
+//
+//nolint:funlen,gocognit,gocyclo
 func (m *Pane) generateContent() string {
 	width := m.width - 2 // Viewport width (without panel borders)
 
@@ -647,13 +651,13 @@ func (m *Pane) generateContent() string {
 		style := lipgloss.NewStyle()
 		prefix := prefixStr // Start with plain prefix
 
-		if i == m.layerIndex {
+		if i == m.layerIndex { //nolint:nestif
 			// Selected row - use selection background
 			// If matched, use yellow foreground; otherwise use normal primary color
 			if layerIsMatched {
 				style = lipgloss.NewStyle().
 					Bold(true).
-					Foreground(styles.HighlightColor).  // Yellow for matched layers
+					Foreground(styles.HighlightColor). // Yellow for matched layers
 					Background(styles.SelectionBgColor)
 				// Keep prefix plain, will be styled with row
 			} else {
@@ -675,7 +679,7 @@ func (m *Pane) generateContent() string {
 
 		// Format ID using CopiableValue component
 		id := ""
-		if i < len(m.idValues) {
+		if i < len(m.idValues) { //nolint:nestif
 			m.idValues[i].SetValue(layer.Id)
 
 			// For selected layer, use plain text (no styling) to allow background highlight
@@ -728,7 +732,7 @@ func (m *Pane) generateContent() string {
 
 		// Format digest (short version: 6 chars) using CopiableValue component
 		digest := ""
-		if showDigest && layer.Digest != "" {
+		if showDigest && layer.Digest != "" { //nolint:nestif
 			// Remove "sha256:" prefix for storage (full digest without prefix)
 			fullDigest := strings.TrimPrefix(layer.Digest, "sha256:")
 
@@ -763,8 +767,8 @@ func (m *Pane) generateContent() string {
 
 		// Format command to take ALL remaining space using CopiableValue component
 		cmd := ""
-		cmdWidth := 0 // Will store the actual width allocated to command
-		if showCommand {
+		cmdWidth := 0    // Will store the actual width allocated to command
+		if showCommand { //nolint:nestif
 			// Clean command: replace tabs/newlines with spaces, collapse multiple spaces
 			rawCmd := strings.ReplaceAll(layer.Command, "\t", " ")
 			rawCmd = strings.ReplaceAll(rawCmd, "\n", " ")

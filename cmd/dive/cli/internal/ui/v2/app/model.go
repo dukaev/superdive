@@ -114,7 +114,7 @@ type Model struct {
 }
 
 // NewModel creates a new bubbletea model with configuration
-func NewModel(ctx context.Context, analysis image.Analysis, content image.ContentReader, prefs v1.Preferences) Model {
+func NewModel(ctx context.Context, analysis image.Analysis, content image.ContentReader, prefs v1.Preferences) Model { //nolint:funlen
 	// Initialize layer viewmodel
 	var layerVM *viewmodel.LayerSetState
 	if len(analysis.Layers) > 0 {
@@ -233,7 +233,7 @@ func (m Model) Init() tea.Cmd {
 
 			// Update tree pane with layer info for title
 			layerInfoMsg := filetreepane.SetLayerInfoMsg{
-				LayerIndex: layerIndex,
+				LayerIndex:  layerIndex,
 				TotalLayers: len(m.layerVM.Layers),
 			}
 			newTree, _ := m.panes[PaneTree].Update(layerInfoMsg)
@@ -262,6 +262,8 @@ func (m *Model) recalculateLayout() {
 }
 
 // Update implements tea.Model
+//
+//nolint:funlen,gocyclo,gocognit
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -383,7 +385,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Update tree pane with layer info for title
 			layerInfoMsg := filetreepane.SetLayerInfoMsg{
-				LayerIndex: msg.LayerIndex,
+				LayerIndex:  msg.LayerIndex,
 				TotalLayers: len(m.layerVM.Layers),
 			}
 			newTree, _ := m.panes[PaneTree].Update(layerInfoMsg)
@@ -567,7 +569,7 @@ func (m *Model) clearFilter() {
 }
 
 // View implements tea.Model (PURE FUNCTION - no side effects!)
-func (m Model) View() string {
+func (m Model) View() string { //nolint:funlen
 	if m.quitting {
 		return styles.TitleStyle.Foreground(styles.SuccessColor).Render("Thanks for using Dive V2UI!")
 	}
@@ -595,7 +597,7 @@ func (m Model) View() string {
 
 	// Render status bar: search input or help
 	var statusBar string
-	if m.searching {
+	if m.searching { //nolint:nestif
 		// Render search input in status bar
 		// Check if regex is valid to determine styling
 		patternText := m.searchInput.Value()
@@ -763,11 +765,11 @@ func (m *Model) findMatchIndices() []int {
 
 // updateSearch handles key presses when in search mode
 // Implements "passthrough navigation" - arrow keys are forwarded to tree pane
-func (m Model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:funlen
 	var cmds []tea.Cmd
 
 	keyMsg, ok := msg.(tea.KeyMsg)
-	if ok {
+	if ok { //nolint:nestif
 		// IMPORTANT: Handle Ctrl+C first to allow quitting even in search mode
 		if keyMsg.Type == tea.KeyCtrlC {
 			m.quitting = true

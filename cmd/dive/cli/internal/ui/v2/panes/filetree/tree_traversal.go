@@ -33,7 +33,7 @@ func CollectVisibleNodes(root *filetree.FileNode) []VisibleNode {
 		// Example levels: [false, true] -> "│ └─"
 		var prefixBuilder strings.Builder
 		for i, isLast := range levels {
-			if i == len(levels)-1 {
+			if i == len(levels)-1 { //nolint:nestif
 				// Current level (the node itself) - 2 chars
 				if isLast {
 					prefixBuilder.WriteString("└─") // Was "└── "

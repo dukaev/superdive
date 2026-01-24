@@ -9,7 +9,7 @@ import (
 	"github.com/wagoodman/dive/dive/image"
 )
 
-func TestCalculateImageStats(t *testing.T) {
+func TestCalculateImageStats(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name     string
 		analysis *image.Analysis

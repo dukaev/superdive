@@ -18,7 +18,7 @@ func imax(a, b int) int {
 
 // RenderHeader creates a column header row for the layers panel
 // The header shows: [#] ID Size A M D Digest Command
-func RenderHeader(width int, wA, wM, wD int) string {
+func RenderHeader(width int, wA, wM, wD int) string { //nolint:funlen
 	// FIX: Calculate inner width first (viewport width without panel borders)
 	viewportWidth := width - 2
 

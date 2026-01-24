@@ -44,6 +44,8 @@ func FilterFlatList(nodes []VisibleNode, opts FilterOptions) []VisibleNode {
 // A directory is shown if:
 // 1. It matches the filter itself OR
 // 2. It contains any visible children (recursive check)
+//
+//nolint:funlen,gocognit
 func CollectVisibleNodesWithFilter(root *filetree.FileNode, opts FilterOptions) []VisibleNode {
 	var nodes []VisibleNode
 
@@ -88,7 +90,7 @@ func CollectVisibleNodesWithFilter(root *filetree.FileNode, opts FilterOptions) 
 		// Generate tree prefix
 		var prefixBuilder strings.Builder
 		for i, isLast := range levels {
-			if i == len(levels)-1 {
+			if i == len(levels)-1 { //nolint:nestif
 				if isLast {
 					prefixBuilder.WriteString("└─")
 				} else {

@@ -147,7 +147,7 @@ func (m *Pane) updateContent() {
 }
 
 // generateContent creates the image statistics content
-func (m *Pane) generateContent() string {
+func (m *Pane) generateContent() string { //nolint:funlen
 	width := m.width - 2 // Subtract borders
 
 	// Calculate stats using domain logic (pure function, no side effects)

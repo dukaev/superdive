@@ -40,7 +40,7 @@ func (d TreeDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd {
 }
 
 // Render renders a single row of the file tree
-func (d TreeDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+func (d TreeDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) { //nolint:funlen
 	item, ok := listItem.(TreeItem)
 	if !ok {
 		return

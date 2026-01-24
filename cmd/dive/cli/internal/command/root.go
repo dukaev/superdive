@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/command/adapter"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/options"
-	v2ui "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2"
 	"github.com/wagoodman/dive/cmd/dive/cli/internal/ui"
+	v2ui "github.com/wagoodman/dive/cmd/dive/cli/internal/ui/v2"
 	"github.com/wagoodman/dive/dive"
 	"github.com/wagoodman/dive/dive/image"
 	"github.com/wagoodman/dive/internal/bus"
@@ -90,7 +90,7 @@ func setUI(app clio.Application, opts options.Application) error {
 	}
 
 	// Default to V2
-	ux := v2ui.NewV2UI(opts.V1Preferences(), os.Stdout, state.Config.Log.Quiet, state.Config.Log.Verbosity)
+	ux := v2ui.NewUI(opts.V1Preferences(), os.Stdout, state.Config.Log.Quiet, state.Config.Log.Verbosity)
 	return state.UI.Replace(ux)
 }
 

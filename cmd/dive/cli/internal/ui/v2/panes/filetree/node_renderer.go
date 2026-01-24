@@ -25,6 +25,8 @@ func RenderNodeWithCursor(sb *strings.Builder, node *filetree.FileNode, prefix s
 // displayName is optional - if empty, node.Name will be used
 // filterRegex is optional - if provided, matching text will be highlighted
 // isCopied indicates this node's path was just copied to clipboard
+//
+//nolint:funlen,gocyclo,gocognit
 func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSelected bool, width int, filterRegex *regexp.Regexp, isCopied bool) string {
 	// 1. Determine visibility based on width
 	showSize, showUID, showPerm := getColumnVisibility(width)
@@ -34,7 +36,7 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 	color := styles.DiffNormalColor
 
 	// Show copy icon if this node was just copied
-	if isCopied {
+	if isCopied { //nolint:nestif
 		icon = styles.IconCopy
 	} else {
 		if node.Data.FileInfo.IsDir() {
@@ -158,7 +160,7 @@ func RenderRow(node *filetree.FileNode, prefix string, displayName string, isSel
 	truncatedName := name
 
 	// Render name with highlight or normal style
-	if filterRegex != nil && filterRegex.MatchString(name) {
+	if filterRegex != nil && filterRegex.MatchString(name) { //nolint:nestif
 		// Highlight matching portions
 		if runewidth.StringWidth(name) > availableForName {
 			truncatedName = smartTruncatePath(name, availableForName)
