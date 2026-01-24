@@ -8,19 +8,19 @@ linters:
     - errcheck
     - staticcheck  # includes gosimple
     - bodyclose
-    - nilerr        # [SENIOR] Возврат nil, когда есть ошибка
-    - noctx         # [SENIOR] HTTP запросы без контекста (причина утечек памяти)
-    - gosec         # [SENIOR] Базовая безопасность
+    - nilerr        # [SENIOR] Returning nil when there is an error
+    - noctx         # [SENIOR] HTTP requests without context (cause of memory leaks)
+    - gosec         # [SENIOR] Basic security
 
     # --- 2. Clean Code & Dead Code ---
     - unused
     - ineffassign
-    - unconvert     # [SENIOR] Убирает лишние конвертации типов (int(x))
-    - prealloc      # [SENIOR] Оптимизация аллокаций слайсов
+    - unconvert     # [SENIOR] Removes unnecessary type conversions (int(x))
+    - prealloc      # [SENIOR] Slice allocation optimization
 
     # --- 3. Style ---
     - misspell
-    - revive        # [SENIOR] Замена golint. Идиоматичный Go.
+    - revive        # [SENIOR] Replacement for golint. Idiomatic Go.
 
     # --- 4. Complexity & Architecture ---
     - gocyclo
@@ -30,13 +30,13 @@ linters:
     - goconst
 
     # --- 5. Linter Hygiene (Meta-Linting) ---
-    - nolintlint    # [SENIOR] Заставляет чистить старые //nolint
+    - nolintlint    # [SENIOR] Forces cleanup of old //nolint comments
 
     # --- 6. The "Opinionated" Reviewer ---
-    - gocritic      # [SENIOR] Находит неочевидные баги и стилистические огрехи
+    - gocritic      # [SENIOR] Finds non-obvious bugs and style issues
 
 linters-settings:
-  # Настройки сложности (оставляем ваши мягкие настройки для легаси)
+  # Complexity settings (keeping your soft settings for legacy)
   funlen:
     lines: 110
     statements: 60
@@ -58,7 +58,7 @@ linters-settings:
   revive:
     rules:
       - name: exported
-        disabled: true # Отключаем требование комментов ко всему экспортируемому (часто шумно для UI)
+        disabled: true # Disable requirement for comments on all exported items (often noisy for UI)
       - name: package-comments
         disabled: true
       - name: dot-imports
@@ -80,18 +80,18 @@ linters-settings:
       - performance
       - style
     disabled-checks:
-      - whyNoLint          # Уже проверяем через nolintlint
-      - wrapperFunc        # Иногда мешает
-      - ifElseChain        # Конфликтует иногда с логикой UI
+      - whyNoLint          # Already checked via nolintlint
+      - wrapperFunc        # Sometimes interferes
+      - ifElseChain        # Sometimes conflicts with UI logic
 
   nolintlint:
-    # Требовать комментарий, объясняющий причину отключения линтера?
-    # Пример: //nolint:gocyclo // complexity is needed here
-    require-explanation: false # Пока false для старта, но Staff поставил бы true
-    require-specific: true     # Запрещает просто //nolint, требует //nolint:gocyclo
+    # Require a comment explaining why the linter is disabled?
+    # Example: //nolint:gocyclo // complexity is needed here
+    require-explanation: false # false for now, but Staff would set to true
+    require-specific: true     # Bans plain //nolint, requires //nolint:gocyclo
 
   gosec:
-    # Исключаем G104 (дублирует errcheck)
+    # Exclude G104 (duplicates errcheck)
     excludes:
       - G104
 
@@ -106,8 +106,8 @@ issues:
         - dupl
         - funlen
         - goconst
-        - gosec     # В тестах безопасность не так критична (hardcoded credentials ok)
-        - noctx     # В тестах часто контекст не нужен
+        - gosec     # Security is less critical in tests (hardcoded credentials ok)
+        - noctx     # Context is often not needed in tests
 
 run:
   timeout: 5m

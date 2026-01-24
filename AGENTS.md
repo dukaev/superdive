@@ -1,76 +1,76 @@
 # AGENTS.md
 
-Инструкции для AI агентов, работающих с этим репозиторием.
+Instructions for AI agents working with this repository.
 
-## 🔥 КРИТИЧЕСКИ ВАЖНО: Snapshot тесты для UI
+## 🔥 CRITICALLY IMPORTANT: Snapshot tests for UI
 
-### Почему это важно
+### Why this is important
 
-В этом проекте используется **snapshot тестирование** для UI компонентов (TUI). Это критически важно для предотвращения случайных изменений в визуальной части приложения.
+This project uses **snapshot testing** for UI components (TUI). This is critically important for preventing accidental changes to the visual part of the application.
 
-**ВАЖНО:** Любые изменения в коде UI могут сломать верстку. Snapshot тесты гарантируют, что дизайн останется стабильным.
+**IMPORTANT:** Any changes to UI code can break the layout. Snapshot tests ensure that the design remains stable.
 
-### Что делать ПЕРЕД внесением изменений в UI
+### What to do BEFORE making UI changes
 
-**НЕОБХОДИМО** запустить snapshot тесты:
+**MUST** run snapshot tests:
 
 ```bash
-# Запустить тесты файлового дерева (ОБЯЗАТЕЛЬНО)
+# Run file tree tests (MANDATORY)
 go test -v ./cmd/dive/cli/internal/ui/v2/panes/filetree
 
-# Или все UI тесты сразу
+# Or run all UI tests at once
 go test -v ./cmd/dive/cli/internal/ui/v2/panes/...
 ```
 
-### Что делать ПОСЛЕ внесения изменений в UI
+### What to do AFTER making UI changes
 
-Если вы изменили что-то в UI (стили, верстку, отступы и т.д.):
+If you changed something in the UI (styles, layout, spacing, etc.):
 
-1. **ОБЯЗАТЕЛЬНО** обновите snapshot файлы:
+1. **MUST** update snapshot files:
    ```bash
    task unit-update-snapshots
    ```
 
-2. **ПРОВЕРЬТЕ** что изменения визуально корректны:
+2. **VERIFY** that the changes are visually correct:
    ```bash
    go test -v ./cmd/dive/cli/internal/ui/v2/panes/...
    ```
 
-3. **УБЕДИТЕЛЬНО** что все тесты проходят
+3. **ENSURE** that all tests pass
 
-### Правила работы с UI кодом
+### Rules for working with UI code
 
-#### ✅ ДОПУСТИМЫЕ ИЗМЕНЕНИЯ:
+#### ✅ ACCEPTABLE CHANGES:
 
-- Изменение логики работы компонента (если визуально ничего не меняется)
-- Оптимизация производительности
-- Рефакторинг (если результат визуально идентичен)
-- Добавление новых фич (с обновлением snapshot)
+- Changing component logic (if nothing changes visually)
+- Performance optimization
+- Refactoring (if the result is visually identical)
+- Adding new features (with snapshot update)
 
-#### ❌ ЗАПРЕЩЕНО:
+#### ❌ PROHIBITED:
 
-- Вносить изменения в UI БЕЗ запуска тестов
-- Игнорировать падающие snapshot тесты
-- Обновлять snapshot файлы "на всякий случай" (только если есть реальные изменения)
+- Making UI changes WITHOUT running tests
+- Ignoring failing snapshot tests
+- Updating snapshot files "just in case" (only if there are actual changes)
 
-### Что делать если тесты падают
+### What to do if tests fail
 
-1. **Посмотрите на diff** - тест покажет что именно изменилось
-2. **Если изменениеEXPECTED** (вы намеренно меняли дизайн):
-   - Обновите snapshot: `task unit-update-snapshots`
-3. **Если изменение НЕОЖИДАНО** (случайно сломали верстку):
-   - Исправьте код
-   - НЕ обновляйте snapshot файлы
+1. **Look at the diff** - the test will show exactly what changed
+2. **If the change is EXPECTED** (you intentionally changed the design):
+   - Update snapshot: `task unit-update-snapshots`
+3. **If the change is UNEXPECTED** (accidentally broke the layout):
+   - Fix the code
+   - DO NOT update snapshot files
 
-### Структура snapshot тестов
+### Snapshot test structure
 
 ```
 cmd/dive/cli/internal/ui/v2/panes/
 ├── filetree/
 │   ├── pane.go
-│   ├── pane_test.go           # Тесты
+│   ├── pane_test.go           # Tests
 │   └── __snapshots__/
-│       └── pane_test.snap     # Golden файлы (эталоны)
+│       └── pane_test.snap     # Golden files (reference)
 ├── layers/
 │   ├── pane.go
 │   ├── pane_test.go
@@ -88,47 +88,47 @@ cmd/dive/cli/internal/ui/v2/panes/
         └── pane_test.snap
 ```
 
-### Дополнительные ресурсы
+### Additional resources
 
-- Документация по snapshot тестам: `cmd/dive/cli/internal/ui/v2/panes/README.md`
+- Snapshot test documentation: `cmd/dive/cli/internal/ui/v2/panes/README.md`
 - [go-snaps documentation](https://github.com/gkampitakis/go-snaps)
 
 ---
 
-## Другие важные инструкции
+## Other important instructions
 
-### Запуск всех тестов
+### Running all tests
 
 ```bash
-# Все unit тесты
+# All unit tests
 task unit
 
-# Все тесты (unit + CLI)
+# All tests (unit + CLI)
 task test
 ```
 
-### Проверка качества кода
+### Code quality checks
 
 ```bash
-# Форматирование
+# Formatting
 task format
 
-# Линтинг
+# Linting
 task lint
 
-# Все проверки
+# All checks
 task pr-validations
 ```
 
 ---
 
-## 🚨 CHECKLIST для агента
+## 🚨 CHECKLIST for agents
 
-Перед тем как сказать "я закончил", агент ДОЛЖЕН:
+Before saying "I'm done", the agent MUST:
 
-- [ ] Запустил `go test -v ./cmd/dive/cli/internal/ui/v2/panes/filetree`
-- [ ] Если тесты падают → понял почему (случайное изменение или реальное)
-- [ ] Если вносил изменения в UI → обновил snapshot файлы
-- [ ] Все тесты проходят SUCCESSFULLY
+- [ ] Run `go test -v ./cmd/dive/cli/internal/ui/v2/panes/filetree`
+- [ ] If tests fail → understand why (accidental change or real one)
+- [ ] If making UI changes → update snapshot files
+- [ ] All tests pass SUCCESSFULLY
 
-**НЕ ЗАБУДЬТЕ ПРО СNAPSHOT ТЕСТЫ! Это критически важно для стабильности UI!** 🎨
+**DON'T FORGET ABOUT SNAPSHOT TESTS! This is critically important for UI stability!** 🎨
