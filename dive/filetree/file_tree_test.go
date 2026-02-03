@@ -1,6 +1,7 @@
 package filetree
 
 import (
+	"archive/tar"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -843,3 +844,297 @@ func TestRemoveOnIterate(t *testing.T) {
 	}
 
 }
+
+func TestVisibleSize(t *testing.T) {
+	t.Run("empty tree", func(t *testing.T) {
+		tree := NewFileTree()
+		size := tree.VisibleSize()
+		// Empty tree has only root, size-- makes it -1
+		assert.Equal(t, -1, size)
+	})
+
+	t.Run("all visible nodes", func(t *testing.T) {
+		tree := NewFileTree()
+		paths := []string{"/dir", "/dir/file1.txt", "/dir/file2.txt", "/other"}
+
+		for _, path := range paths {
+			fakeData := FileInfo{
+				Path:     path,
+				TypeFlag: 1,
+				hash:     123,
+				Size:     100,
+			}
+			if path == "/dir" {
+				fakeData.TypeFlag = tar.TypeDir
+			}
+			_, _, err := tree.AddPath(path, fakeData)
+			assert.NoError(t, err)
+		}
+
+		size := tree.VisibleSize()
+		// Should count all nodes except root: /dir, /dir/file1.txt, /dir/file2.txt, /other - 1(root) = 3
+		assert.Equal(t, 3, size)
+	})
+
+	t.Run("with hidden nodes", func(t *testing.T) {
+		tree := NewFileTree()
+		paths := []string{"/dir", "/dir/file1.txt", "/dir/file2.txt"}
+
+		for _, path := range paths {
+			fakeData := FileInfo{
+				Path:     path,
+				TypeFlag: 1,
+				hash:     123,
+			}
+			if path == "/dir" {
+				fakeData.TypeFlag = tar.TypeDir
+			}
+			node, _, err := tree.AddPath(path, fakeData)
+			assert.NoError(t, err)
+
+			// Hide /dir/file2.txt
+			if path == "/dir/file2.txt" {
+				node.Data.ViewInfo.Hidden = true
+			}
+		}
+
+		size := tree.VisibleSize()
+		// Should count only visible nodes: /dir, /dir/file1.txt - 1(root) = 1 (file2.txt is hidden)
+		assert.Equal(t, 1, size)
+	})
+
+	t.Run("with collapsed directory", func(t *testing.T) {
+		tree := NewFileTree()
+		paths := []string{"/dir", "/dir/file1.txt", "/dir/file2.txt", "/other"}
+
+		for _, path := range paths {
+			fakeData := FileInfo{
+				Path:     path,
+				TypeFlag: 1,
+				hash:     123,
+			}
+			if path == "/dir" {
+				fakeData.TypeFlag = tar.TypeDir
+			}
+			node, _, err := tree.AddPath(path, fakeData)
+			assert.NoError(t, err)
+
+			// Collapse /dir
+			if path == "/dir" {
+				node.Data.ViewInfo.Collapsed = true
+			}
+		}
+
+		size := tree.VisibleSize()
+		// Should count: /dir (collapsed, counted but children not), /other - 1(root) = 1
+		assert.Equal(t, 1, size)
+	})
+
+	t.Run("with hidden directory", func(t *testing.T) {
+		tree := NewFileTree()
+		paths := []string{"/dir", "/dir/file1.txt", "/other"}
+
+		for _, path := range paths {
+			fakeData := FileInfo{
+				Path:     path,
+				TypeFlag: 1,
+				hash:     123,
+			}
+			if path == "/dir" {
+				fakeData.TypeFlag = tar.TypeDir
+			}
+			node, _, err := tree.AddPath(path, fakeData)
+			assert.NoError(t, err)
+
+			// Hide /dir (should hide children too)
+			if path == "/dir" {
+				node.Data.ViewInfo.Hidden = true
+			}
+		}
+
+		size := tree.VisibleSize()
+		// Should count only: /other - 1(root) = 0 (dir and its children are hidden)
+		assert.Equal(t, 0, size)
+	})
+
+	t.Run("complex tree with mixed visibility", func(t *testing.T) {
+		tree := NewFileTree()
+		paths := []string{
+			"/dir1",
+			"/dir1/file1.txt",
+			"/dir1/file2.txt",
+			"/dir2",
+			"/dir2/file3.txt",
+			"/other",
+		}
+
+		for _, path := range paths {
+			fakeData := FileInfo{
+				Path:     path,
+				TypeFlag: 1,
+				hash:     123,
+			}
+			if path == "/dir1" || path == "/dir2" {
+				fakeData.TypeFlag = tar.TypeDir
+			}
+			node, _, err := tree.AddPath(path, fakeData)
+			assert.NoError(t, err)
+
+			// Hide /dir1/file2.txt
+			if path == "/dir1/file2.txt" {
+				node.Data.ViewInfo.Hidden = true
+			}
+			// Collapse /dir2
+			if path == "/dir2" {
+				node.Data.ViewInfo.Collapsed = true
+			}
+		}
+
+		size := tree.VisibleSize()
+		// Should count: /dir1, /dir1/file1.txt, /dir2 (collapsed), /other - 1(root) = 3
+		// /dir1/file2.txt is hidden, /dir2/file3.txt not counted because dir2 is collapsed
+		assert.Equal(t, 3, size)
+	})
+}
+
+func TestVisitDepthParentFirst(t *testing.T) {
+	t.Run("visits nodes parent first", func(t *testing.T) {
+		tree := NewFileTree()
+		paths := []string{"/dir", "/dir/file1.txt", "/dir/file2.txt"}
+
+		for _, path := range paths {
+			fakeData := FileInfo{
+				Path:     path,
+				TypeFlag: 1,
+				hash:     123,
+			}
+			if path == "/dir" {
+				fakeData.TypeFlag = tar.TypeDir
+			}
+			_, _, err := tree.AddPath(path, fakeData)
+			assert.NoError(t, err)
+		}
+
+		var visited []string
+		visitor := func(node *FileNode) error {
+			visited = append(visited, node.Path())
+			return nil
+		}
+		evaluator := func(node *FileNode) bool {
+			return true
+		}
+
+		err := tree.VisitDepthParentFirst(visitor, evaluator)
+		assert.NoError(t, err)
+
+		// Parent should be visited before children
+		// Order should be: root, /dir, /dir/file1.txt, /dir/file2.txt
+		assert.Greater(t, len(visited), 0)
+		// Find indices
+		var dirIdx, file1Idx, file2Idx int
+		for i, path := range visited {
+			if path == "/dir" {
+				dirIdx = i
+			} else if path == "/dir/file1.txt" {
+				file1Idx = i
+			} else if path == "/dir/file2.txt" {
+				file2Idx = i
+			}
+		}
+
+		// Parent should be visited before children
+		assert.Less(t, dirIdx, file1Idx)
+		assert.Less(t, dirIdx, file2Idx)
+	})
+
+	t.Run("respects evaluator", func(t *testing.T) {
+		tree := NewFileTree()
+		paths := []string{"/dir", "/dir/file1.txt", "/dir/file2.txt"}
+
+		for _, path := range paths {
+			fakeData := FileInfo{
+				Path:     path,
+				TypeFlag: 1,
+				hash:     123,
+			}
+			if path == "/dir" {
+				fakeData.TypeFlag = tar.TypeDir
+			}
+			_, _, err := tree.AddPath(path, fakeData)
+			assert.NoError(t, err)
+		}
+
+		var visited []string
+		visitor := func(node *FileNode) error {
+			visited = append(visited, node.Path())
+			return nil
+		}
+		// Don't visit /dir/file2.txt
+		evaluator := func(node *FileNode) bool {
+			return node.Path() != "/dir/file2.txt"
+		}
+
+		err := tree.VisitDepthParentFirst(visitor, evaluator)
+		assert.NoError(t, err)
+
+		// /dir/file2.txt should not be visited
+		assert.NotContains(t, visited, "/dir/file2.txt")
+		// But /dir should be visited (parent)
+		assert.Contains(t, visited, "/dir")
+	})
+
+	t.Run("handles empty tree", func(t *testing.T) {
+		tree := NewFileTree()
+
+		visited := false
+		visitor := func(node *FileNode) error {
+			visited = true
+			return nil
+		}
+		evaluator := func(node *FileNode) bool {
+			return true
+		}
+
+		err := tree.VisitDepthParentFirst(visitor, evaluator)
+		assert.NoError(t, err)
+		// Empty tree has no nodes to visit (root exists but has no children)
+		// The visitor will not be called for an empty tree
+		assert.False(t, visited)
+	})
+
+	t.Run("visitor error stops iteration", func(t *testing.T) {
+		tree := NewFileTree()
+		paths := []string{"/dir", "/dir/file1.txt", "/dir/file2.txt"}
+
+		for _, path := range paths {
+			fakeData := FileInfo{
+				Path:     path,
+				TypeFlag: 1,
+				hash:     123,
+			}
+			if path == "/dir" {
+				fakeData.TypeFlag = tar.TypeDir
+			}
+			_, _, err := tree.AddPath(path, fakeData)
+			assert.NoError(t, err)
+		}
+
+		visitCount := 0
+		visitor := func(node *FileNode) error {
+			visitCount++
+			if node.Path() == "/dir/file1.txt" {
+				return assert.AnError
+			}
+			return nil
+		}
+		evaluator := func(node *FileNode) bool {
+			return true
+		}
+
+		err := tree.VisitDepthParentFirst(visitor, evaluator)
+		assert.Error(t, err)
+		// Should stop after error
+		assert.LessOrEqual(t, visitCount, 3) // root, /dir, /dir/file1.txt
+	})
+}
+

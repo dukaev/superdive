@@ -1,0 +1,38 @@
+{
+  "name": "superdive",
+  "version": "0.14.0",
+  "description": "A tool for exploring a Docker image, layer contents, and discovering ways to shrink the size of your Docker/OCI image.",
+  "bin": {
+    "superdive": "bin/superdive.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dukaev/superdive.git"
+  },
+  "keywords": [
+    "docker",
+    "container",
+    "image",
+    "oci",
+    "layer",
+    "dive",
+    "cli"
+  ],
+  "author": "Aslan Dukaev",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dukaev/superdive/issues"
+  },
+  "homepage": "https://github.com/dukaev/superdive#readme",
+  "engines": {
+    "node": ">=14"
+  },
+  "files": [
+    "bin",
+    "scripts"
+  ]
+}

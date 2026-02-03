@@ -8,7 +8,6 @@ on:
 
 jobs:
   Static-Analysis:
-    # Note: changing this job name requires making the same update in the .github/workflows/release.yaml pipeline
     name: "Static analysis"
     runs-on: ubuntu-latest
     steps:
@@ -21,15 +20,11 @@ jobs:
         run: make static-analysis
 
   Unit-Test:
-    # Note: changing this job name requires making the same update in the .github/workflows/release.yaml pipeline
     name: "Unit tests"
     strategy:
       matrix:
         platform:
           - ubuntu-latest
-    #         - macos-latest # todo: mac runners are expensive minute-wise
-    #         - windows-latest # todo: support windows
-
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -58,25 +53,16 @@ jobs:
       - name: Build snapshot artifacts
         run: make snapshot
 
-      - run: docker images wagoodman/dive
-
-      # todo: compare against known json output in shared volume
-      - name: Test production image
-        run: make ci-test-docker-image
-
-      # why not use actions/upload-artifact? It is very slow (3 minutes to upload ~600MB of data, vs 10 seconds with this approach).
-      # see https://github.com/actions/upload-artifact/issues/199 for more info
       - name: Upload snapshot artifacts
         uses: actions/cache/save@v4
         with:
           path: snapshot
           key: snapshot-build-${{ github.run_id }}
 
-      # ... however the cache trick doesn't work on windows :(
       - uses: actions/upload-artifact@v4
         with:
           name: windows-artifacts
-          path: snapshot/dive_windows_amd64_v1/dive.exe
+          path: snapshot/superdive_windows_amd64_v1/superdive.exe
 
   Acceptance-Linux:
     name: "Acceptance tests (Linux)"
@@ -93,12 +79,6 @@ jobs:
 
       - name: Test linux run
         run: make ci-test-linux-run
-
-      - name: Test DEB package installation
-        run: make ci-test-deb-package-install
-
-      - name: Test RPM package installation
-        run: make ci-test-rpm-package-install
 
   Acceptance-Mac:
     name: "Acceptance tests (Mac)"

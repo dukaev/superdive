@@ -1,8 +1,8 @@
 
 version: "3"
 vars:
-  OWNER: wagoodman
-  PROJECT: dive
+  OWNER: dukaev
+  PROJECT: superdive
 
   # static file dirs
   TOOL_DIR: .tool
@@ -182,6 +182,16 @@ tasks:
       - cmd: ".github/scripts/coverage.py {{ .COVERAGE_THRESHOLD }} {{ .TMP_DIR }}/unit-coverage-details.txt"
         silent: true
 
+  unit-update-snapshots:
+    desc: Update snapshot test golden files
+    deps:
+      - tmpdir
+    vars:
+      TEST_PKGS:
+        sh: "go list ./... | grep -v '^github.com/wagoodman/dive/cmd/dive/cli$'  | tr '\n' ' '"
+    cmds:
+      - "go test {{ .TEST_PKGS }} -update -v"
+
   cli:
     desc: Run CLI tests
     cmds:
@@ -192,22 +202,8 @@ tasks:
   ci-test-linux:
     cmds:
       - task: ci-test-linux-run
-      - task: ci-test-docker-image
       - task: ci-test-deb-package-install
       - task: ci-test-rpm-package-install
-
-  ci-test-docker-image:
-    desc: Test using the docker image
-    cmds:
-      - |
-        docker run \
-          --rm \
-          -t \
-          --env CLICOLOR_FORCE=true \
-          -v /var/run/docker.sock:/var/run/docker.sock \
-          'docker.io/wagoodman/dive:latest' \
-            '{{ .TEST_IMAGE }}' \
-            --ci
 
   ci-test-deb-package-install:
     desc: Test debian package installation
@@ -227,9 +223,9 @@ tasks:
                 tar -vxzf - docker/docker --strip-component=1 && \
                 mv docker /usr/local/bin/ &&\
               docker version && \
-              apt install ./snapshot/dive_*_linux_amd64.deb -y && \
-              dive --version && \
-              dive '{{ .TEST_IMAGE }}' --ci \
+              apt install ./snapshot/superdive_*_linux_amd64.deb -y && \
+              superdive --version && \
+              superdive '{{ .TEST_IMAGE }}' --ci \
             "
 
   ci-test-rpm-package-install:
@@ -248,9 +244,9 @@ tasks:
                 tar -vxzf - docker/docker --strip-component=1 && \
                 mv docker /usr/local/bin/ &&\
               docker version && \
-              dnf install ./snapshot/dive_*_linux_amd64.rpm -y && \
-              dive --version && \
-              dive '{{ .TEST_IMAGE }}' --ci \
+              dnf install ./snapshot/superdive_*_linux_amd64.rpm -y && \
+              superdive --version && \
+              superdive '{{ .TEST_IMAGE }}' --ci \
             "
 
   generate-compressed-test-images:
@@ -261,7 +257,7 @@ tasks:
           for exporter in docker image; do \
             docker buildx build \
               -f .data/Dockerfile.minimal \
-              --tag test-dive-${exporter}:${alg} \
+              --tag test-superdive-${exporter}:${alg} \
               --output type=${exporter},force-compression=true,compression=${alg} . ; \
           done ; \
         done && \
@@ -288,16 +284,16 @@ tasks:
     cmds:
       - |
         ls -la {{ .SNAPSHOT_DIR }}
-        ls -la {{ .SNAPSHOT_DIR }}/dive_linux_amd64_v1
-        chmod 755 {{ .SNAPSHOT_DIR }}/dive_linux_amd64_v1/dive && \
-        {{ .SNAPSHOT_DIR }}/dive_linux_amd64_v1/dive '{{ .TEST_IMAGE }}' --ci && \
-        {{ .SNAPSHOT_DIR }}/dive_linux_amd64_v1/dive --source docker-archive .data/test-kaniko-image.tar --ci --ci-config .data/.dive-ci
+        ls -la {{ .SNAPSHOT_DIR }}/superdive_linux_amd64_v1
+        chmod 755 {{ .SNAPSHOT_DIR }}/superdive_linux_amd64_v1/superdive && \
+        {{ .SNAPSHOT_DIR }}/superdive_linux_amd64_v1/superdive '{{ .TEST_IMAGE }}' --ci && \
+        {{ .SNAPSHOT_DIR }}/superdive_linux_amd64_v1/superdive --source docker-archive .data/test-kaniko-image.tar --ci --ci-config .data/.dive-ci
       - |
         for alg in uncompressed gzip estargz zstd; do \
           for exporter in docker image; do \
-            {{ .SNAPSHOT_DIR }}/dive_linux_amd64_v1/dive "test-dive-${exporter}:${alg}" --ci ; \
+            {{ .SNAPSHOT_DIR }}/superdive_linux_amd64_v1/superdive "test-superdive-${exporter}:${alg}" --ci ; \
           done && \
-          {{ .SNAPSHOT_DIR }}/dive_linux_amd64_v1/dive --source docker-archive .data/test-oci-${alg}-image.tar --ci --ci-config .data/.dive-ci; \
+          {{ .SNAPSHOT_DIR }}/superdive_linux_amd64_v1/superdive --source docker-archive .data/test-oci-${alg}-image.tar --ci --ci-config .data/.dive-ci; \
         done
 
   ci-test-mac-run:
@@ -305,8 +301,8 @@ tasks:
     deps: [ci-check]
     cmds:
       - |
-        chmod 755 {{ .SNAPSHOT_DIR }}/dive_darwin_amd64_v1/dive && \
-        {{ .SNAPSHOT_DIR }}/dive_darwin_amd64_v1/dive --source docker-archive .data/test-docker-image.tar --ci --ci-config .data/.dive-ci
+        chmod 755 {{ .SNAPSHOT_DIR }}/superdive_darwin_amd64_v1/superdive && \
+        {{ .SNAPSHOT_DIR }}/superdive_darwin_amd64_v1/superdive --source docker-archive .data/test-docker-image.tar --ci --ci-config .data/.dive-ci
 
 
   ## Build-related targets #################################

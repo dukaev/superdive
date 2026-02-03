@@ -3,6 +3,7 @@ package cli
 import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"regexp"
 	"testing"
 )
 
@@ -20,6 +21,13 @@ func Test_CI_DefaultCIConfig(t *testing.T) {
 	assert.Contains(t, combined, "lowest-efficiency: \"0.96\"", "missing lowest-efficiency rule")
 	assert.Contains(t, combined, "highest-wasted-bytes: 19Mb", "missing highest-wasted-bytes rule")
 	assert.Contains(t, combined, "highest-user-wasted-percent: \"0.6\"", "missing highest-user-wasted-percent rule")
+
+	// replace user-specific paths to avoid environment-specific differences
+	combined = regexp.MustCompile(`image:\s+/Users/.+`).ReplaceAllString(combined, `image: <path>`)
+	combined = regexp.MustCompile(`fetching image=/Users/.+`).ReplaceAllString(combined, `fetching image=<path>`)
+
+	// replace timestamps to avoid non-deterministic output
+	combined = regexp.MustCompile(`\[\d+\]\s+(INFO|DEBUG|WARN|ERROR)`).ReplaceAllString(combined, `[0000] $1`)
 
 	snaps.MatchSnapshot(t, combined)
 }

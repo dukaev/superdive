@@ -21,6 +21,11 @@ package main
 // THE SOFTWARE.
 
 import (
+	"fmt"
+	"os"
+
+	runtimepprof "runtime/pprof"
+
 	"github.com/anchore/clio"
 	"github.com/wagoodman/dive/cmd/dive/cli"
 )
@@ -41,6 +46,25 @@ var (
 )
 
 func main() {
+	cpuProfile := os.Getenv("CPU_PROFILE")
+	memProfile := os.Getenv("MEM_PROFILE")
+	goroutineProfile := os.Getenv("GOROUTINE_PROFILE")
+
+	// Start CPU profiling if requested
+	if cpuProfile != "" {
+		f, err := os.Create(cpuProfile)
+		if err != nil {
+			panic(fmt.Sprintf("could not create CPU profile: %v", err))
+		}
+		if err := runtimepprof.StartCPUProfile(f); err != nil {
+			panic(fmt.Sprintf("could not start CPU profile: %v", err))
+		}
+		defer func() {
+			runtimepprof.StopCPUProfile()
+			f.Close()
+		}()
+	}
+
 	app := cli.Application(
 		clio.Identification{
 			Name:           applicationName,
@@ -52,4 +76,27 @@ func main() {
 	)
 
 	app.Run()
+
+	// Write memory profile after execution if requested
+	if memProfile != "" {
+		f, err := os.Create(memProfile)
+		if err != nil {
+			panic(fmt.Sprintf("could not create memory profile: %v", err))
+		}
+		defer f.Close()
+		runtimepprof.WriteHeapProfile(f)
+	}
+
+	// Write goroutine profile after execution if requested
+	if goroutineProfile != "" {
+		f, err := os.Create(goroutineProfile)
+		if err != nil {
+			panic(fmt.Sprintf("could not create goroutine profile: %v", err))
+		}
+		defer f.Close()
+		g := runtimepprof.Lookup("goroutine")
+		if g != nil {
+			g.WriteTo(f, 0)
+		}
+	}
 }

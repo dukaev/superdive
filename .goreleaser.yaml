@@ -14,7 +14,8 @@ env:
   - CGO_ENABLED=0
 
 builds:
-  - binary: dive
+  - id: superdive
+    binary: superdive
     dir: ./cmd/dive
     env:
       - CGO_ENABLED=0
@@ -25,7 +26,6 @@ builds:
     goarch:
       - amd64
       - arm64
-      - ppc64le
     ldflags:
       -w
       -s
@@ -35,40 +35,35 @@ builds:
       -X main.buildDate={{.Date}}
       -X main.gitDescription={{.Summary}}
 
-brews:
-  - repository:
-      owner: wagoodman
-      name: homebrew-dive
-      token: "{{.Env.TAP_GITHUB_TOKEN}}"
-    homepage: &project_url "https://github.com/wagoodman/dive/"
-    description: &description "A tool for exploring layers in a docker image"
-
 archives:
-  - format: tar.gz
+  - id: superdive-archives
+    builds:
+      - superdive
+    name_template: "superdive_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
     format_overrides:
       - goos: windows
         format: zip
 
 nfpms:
   - license: MIT
-    maintainer: Alex Goodman
-    homepage: *project_url
-    description: *description
+    maintainer: Aslan Dukaev
+    homepage: "https://github.com/dukaev/superdive"
+    description: "A tool for exploring layers in a docker image"
     formats:
       - rpm
       - deb
 
 dockers:
-  # docker.io amd64
-  - &dockerhub_amd64
+  - &docker_amd64
     id: docker-amd64
     ids:
-      - dive
+      - superdive
     use: buildx
     goarch: amd64
     image_templates:
-      - docker.io/wagoodman/dive:latest
-      - docker.io/wagoodman/dive:v{{.Version}}-amd64
+      - ghcr.io/dukaev/superdive:latest
+      - ghcr.io/dukaev/superdive:v{{.Version}}-amd64
     build_flag_templates:
       - "--build-arg=DOCKER_CLI_VERSION={{.Env.DOCKER_CLI_VERSION}}"
       - "--platform=linux/amd64"
@@ -80,17 +75,15 @@ dockers:
       - "--label=org.opencontainers.image.version={{.Version}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.licenses=MIT"
-      - "--label=org.opencontainers.image.authors=Alex Goodman <@wagoodman>"
 
-  # docker.io arm64
-  - &dockerhub_arm64
+  - &docker_arm64
     id: docker-arm64
     ids:
-      - dive
+      - superdive
     use: buildx
     goarch: arm64
     image_templates:
-      - docker.io/wagoodman/dive:v{{.Version}}-arm64
+      - ghcr.io/dukaev/superdive:v{{.Version}}-arm64
     build_flag_templates:
       - "--build-arg=DOCKER_CLI_VERSION={{.Env.DOCKER_CLI_VERSION}}"
       - "--platform=linux/arm64/v8"
@@ -102,47 +95,14 @@ dockers:
       - "--label=org.opencontainers.image.version={{.Version}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.licenses=MIT"
-      - "--label=org.opencontainers.image.authors=Alex Goodman <@wagoodman>"
-
-  # ghcr.io amd64
-  - id: ghcr-amd64
-    <<: *dockerhub_amd64
-    image_templates:
-      - ghcr.io/wagoodman/dive:v{{.Version}}-amd64
-
-  # ghcr.io arm64
-  - id: ghcr-arm64
-    <<: *dockerhub_arm64
-    image_templates:
-      - ghcr.io/wagoodman/dive:v{{.Version}}-arm64
 
 docker_manifests:
-  # docker.io manifests
-  - name_template: docker.io/wagoodman/dive:latest
-    image_templates: &dockerhub_images
-      - docker.io/wagoodman/dive:v{{.Version}}-amd64
-      - docker.io/wagoodman/dive:v{{.Version}}-arm64
+  - name_template: ghcr.io/dukaev/superdive:latest
+    image_templates:
+      - ghcr.io/dukaev/superdive:v{{.Version}}-amd64
+      - ghcr.io/dukaev/superdive:v{{.Version}}-arm64
 
-  - name_template: docker.io/wagoodman/dive:v{{.Major}}
-    image_templates: *dockerhub_images
-
-  - name_template: docker.io/wagoodman/dive:v{{.Major}}.{{.Minor}}
-    image_templates: *dockerhub_images
-
-  - name_template: docker.io/wagoodman/dive:v{{.Version}}
-    image_templates: *dockerhub_images
-
-  # ghcr.io manifests
-  - name_template: ghcr.io/wagoodman/dive:latest
-    image_templates: &ghcr_images
-      - ghcr.io/wagoodman/dive:v{{.Version}}-amd64
-      - ghcr.io/wagoodman/dive:v{{.Version}}-arm64
-
-  - name_template: ghcr.io/wagoodman/dive:v{{.Major}}
-    image_templates: *ghcr_images
-
-  - name_template: ghcr.io/wagoodman/dive:v{{.Major}}.{{.Minor}}
-    image_templates: *ghcr_images
-
-  - name_template: ghcr.io/wagoodman/dive:v{{.Version}}
-    image_templates: *ghcr_images
+  - name_template: ghcr.io/dukaev/superdive:v{{.Version}}
+    image_templates:
+      - ghcr.io/dukaev/superdive:v{{.Version}}-amd64
+      - ghcr.io/dukaev/superdive:v{{.Version}}-arm64

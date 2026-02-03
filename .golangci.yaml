@@ -1,74 +1,116 @@
-# TODO: enable this when we have coverage on docstring comments
-#issues:
-#  # The list of ids of default excludes to include or disable.
-#  include:
-#    - EXC0002 # disable excluding of issues about comments from golint
+version: "2"
+
+linters:
+  disable-all: true
+  enable:
+    # --- 1. Critical Bugs & Correctness (Must Have) ---
+    - govet
+    - errcheck
+    - staticcheck  # includes gosimple
+    - bodyclose
+    - nilerr        # [SENIOR] Returning nil when there is an error
+    - noctx         # [SENIOR] HTTP requests without context (cause of memory leaks)
+    - gosec         # [SENIOR] Basic security
+
+    # --- 2. Clean Code & Dead Code ---
+    - unused
+    - ineffassign
+    - unconvert     # [SENIOR] Removes unnecessary type conversions (int(x))
+    - prealloc      # [SENIOR] Slice allocation optimization
+
+    # --- 3. Style ---
+    - misspell
+    - revive        # [SENIOR] Replacement for golint. Idiomatic Go.
+
+    # --- 4. Complexity & Architecture ---
+    - gocyclo
+    - gocognit
+    - funlen
+    - nestif
+    - goconst
+
+    # --- 5. Linter Hygiene (Meta-Linting) ---
+    - nolintlint    # [SENIOR] Forces cleanup of old //nolint comments
+
+    # --- 6. The "Opinionated" Reviewer ---
+    - gocritic      # [SENIOR] Finds non-obvious bugs and style issues
 
 linters-settings:
+  # Complexity settings (keeping your soft settings for legacy)
   funlen:
-    # Checks the number of lines in a function.
-    # If lower than 0, disable the check.
-    # Default: 60
-    # TODO: drop this down over time...
     lines: 110
-    # Checks the number of statements in a function.
-    # If lower than 0, disable the check.
-    # Default: 40
     statements: 60
 
-# TODO: use the default linters for now, but include these over time
-#linters:
-#  # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
-#  disable-all: true
-#  enable:
-#    - asciicheck
-#    - bodyclose
-#    - depguard
-#    - dogsled
-#    - dupl
-#    - errcheck
-#    - exportloopref
-#    - funlen
-#    - gocognit
-#    - goconst
-#    - gocritic
-#    - gocyclo
-#    - gofmt
-#    - goimports
-#    - goprintffuncname
-#    - gosec
-#    - gosimple
-#    - govet
-#    - ineffassign
-#    - misspell
-#    - nakedret
-#    - nolintlint
-#    - revive
-#    - staticcheck
-#    - stylecheck
-#    - typecheck
-#    - unconvert
-#    - unparam
-#    - unused
-#    - whitespace
+  gocyclo:
+    min-complexity: 35
 
-# do not enable...
-#    - gochecknoglobals
-#    - gochecknoinits    # this is too aggressive
-#    - godot
-#    - godox
-#    - goerr113
-#    - golint       # deprecated
-#    - gomnd        # this is too aggressive
-#    - interfacer   # this is a good idea, but is no longer supported and is prone to false positives
-#    - lll          # without a way to specify per-line exception cases, this is not usable
-#    - maligned     # this is an excellent linter, but tricky to optimize and we are not sensitive to memory layout optimizations
-#    - nestif
-#    - prealloc     # following this rule isn't consistently a good idea, as it sometimes forces unnecessary allocations that result in less idiomatic code
-#    - scopelint    # deprecated
-#    - testpackage
-#    - wsl          # this doesn't have an auto-fixer yet and is pretty noisy (https://github.com/bombsimon/wsl/issues/90)
-#    - varcheck     # deprecated (since v1.49.0) due to: The owner seems to have abandoned the linter.  Replaced by unused.
-#    - deadcode     # deprecated (since v1.49.0) due to: The owner seems to have abandoned the linter.  Replaced by unused.
-#    - structcheck  # deprecated (since v1.49.0) due to: The owner seems to have abandoned the linter.  Replaced by unused.
-#    - rowserrcheck # we're not using sql.Rows at all in the codebase
+  gocognit:
+    min-complexity: 30
+
+  nestif:
+    min-complexity: 5
+
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  # [SENIOR SETTINGS]
+  revive:
+    rules:
+      - name: exported
+        disabled: true # Disable requirement for comments on all exported items (often noisy for UI)
+      - name: package-comments
+        disabled: true
+      - name: dot-imports
+        severity: warning
+      - name: error-naming
+        severity: warning
+      - name: error-strings
+        severity: warning
+      - name: error-return
+        severity: warning
+      - name: var-naming
+        disabled: true # Allow "common" and "utils" package names
+      - name: exported
+        severity: warning
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - whyNoLint          # Already checked via nolintlint
+      - wrapperFunc        # Sometimes interferes
+      - ifElseChain        # Sometimes conflicts with UI logic
+
+  nolintlint:
+    # Require a comment explaining why the linter is disabled?
+    # Example: //nolint:gocyclo // complexity is needed here
+    require-explanation: false # false for now, but Staff would set to true
+    require-specific: true     # Bans plain //nolint, requires //nolint:gocyclo
+
+  gosec:
+    # Exclude G104 (duplicates errcheck)
+    excludes:
+      - G104
+
+issues:
+  exclude-dirs:
+    - vendor
+  exclude-rules:
+    - source: "TestCalculateImageStats"
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - funlen
+        - goconst
+        - gosec     # Security is less critical in tests (hardcoded credentials ok)
+        - noctx     # Context is often not needed in tests
+        - gocognit  # Tests can have higher complexity
+
+run:
+  timeout: 5m

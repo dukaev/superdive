@@ -1,0 +1,88 @@
+// Package layout provides layout calculation utilities for the UI
+package layout
+
+// Layout constants for viewport calculations
+const (
+	BorderHeight        = 2                           // Top + Bottom border lines
+	HeaderHeight        = 0                           // Title is now on border (BorderLabel), not inside content
+	BoxContentPadding   = BorderHeight + HeaderHeight // Total padding inside RenderBox
+	ContentVisualOffset = 1                           // Offset for mouse hit testing: 1 border line only
+
+	// Additional header heights for specific panes
+	TreeTableHeaderHeight = 3 // "Name   Size   Permissions" table header
+)
+
+// Result stores calculated pane dimensions
+type Result struct {
+	ContentStartY int
+	LeftWidth     int
+	RightWidth    int
+	LayersHeight  int
+	DetailsHeight int
+	ImageHeight   int
+	TreeHeight    int
+}
+
+// Calculate computes pane dimensions based on terminal size
+// This is a pure function - no state, no caching, just simple math
+func Calculate(width, height int) Result {
+	statusBarHeight := 1
+
+	result := Result{}
+	result.ContentStartY = 0 // No title, content starts from top
+
+	// Subtract 1 extra line for safety to prevent terminal auto-scroll
+	availableHeight := height - statusBarHeight - 1
+	if availableHeight < 10 {
+		availableHeight = 10
+	}
+
+	// Calculate widths (50/50 split)
+	// Left panel gets half the space, right panel gets the rest
+	// No gap between panels (lipgloss.JoinHorizontal joins them directly)
+	result.LeftWidth = width / 2
+	if result.LeftWidth < 20 {
+		result.LeftWidth = 20
+	}
+	result.RightWidth = width - result.LeftWidth // Right panel gets remaining space
+	if result.RightWidth < 20 {
+		result.RightWidth = 20
+	}
+
+	// Calculate heights (left column)
+	// Layers: flexible, Image: flexible, Details: at least 12 lines
+	result.DetailsHeight = 12 // Minimum for command display
+
+	if result.DetailsHeight > availableHeight/3 {
+		result.DetailsHeight = availableHeight / 3
+	}
+
+	remainingHeight := availableHeight - result.DetailsHeight
+	result.LayersHeight = remainingHeight / 2
+	if result.LayersHeight < 5 {
+		result.LayersHeight = 5
+	}
+
+	result.ImageHeight = remainingHeight - result.LayersHeight
+	if result.ImageHeight < 5 {
+		result.ImageHeight = 5
+	}
+
+	result.TreeHeight = availableHeight
+
+	return result
+}
+
+// GetViewportDimensions returns the width and height for a viewport
+// accounting for borders and title bar
+func (r Result) GetViewportDimensions(paneWidth, paneHeight int) (width, height int) {
+	width = paneWidth - 2 // Side borders
+
+	safeHeight := paneHeight - BoxContentPadding
+	if safeHeight < 0 {
+		safeHeight = 0
+	}
+	height = safeHeight
+
+	return width, height
+}

@@ -77,7 +77,7 @@ func Efficiency(trees []*FileTree) (float64, EfficiencySlice) {
 				return err
 			}
 
-			if previousTreeNode.Data.FileInfo.IsDir {
+			if previousTreeNode.Data.FileInfo.IsDir() {
 				err = previousTreeNode.VisitDepthChildFirst(sizer, nil, nil)
 				if err != nil {
 					return fmt.Errorf("unable to propagate whiteout dir: %w", err)
