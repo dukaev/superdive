@@ -1,0 +1,38 @@
+# Source files
+cmd/
+dive/
+internal/
+*.go
+go.mod
+go.sum
+
+# Build files
+Makefile
+Taskfile.yaml
+Dockerfile
+.goreleaser.yaml
+.golangci.yaml
+coverage.out
+snapshot/
+
+# Git/GitHub
+.git/
+.github/
+.gitignore
+
+# Config files
+.binny.yaml
+.bouncer.yaml
+.dockerignore
+.dive-ci
+
+# Documentation (keep README)
+RELEASE.md
+AGENTS.md
+
+# Data
+.data/
+
+# Test files
+*_test.go
+testdata/

@@ -2,47 +2,41 @@
 
 **A tool for exploring a Docker image, layer contents, and discovering ways to shrink the size of your Docker/OCI image.**
 
-
 ![Image](.data/demo.gif)
 
-To analyze a Docker image simply run dive with an image tag/id/digest:
-```bash
-dive <your-image-tag>
-```
+## Installation
 
-or you can dive with Docker directly:
-```
-alias dive="docker run -ti --rm  -v /var/run/docker.sock:/var/run/docker.sock docker.io/wagoodman/dive"
-dive <your-image-tag>
-
-# for example
-dive nginx:latest
-```
-
-or if you want to build your image then jump straight into analyzing it:
-```bash
-dive build -t <some-tag> .
-```
-
-Building on macOS (supporting only the Docker container engine):
+### bun/npm (recommended)
 
 ```bash
-docker run --rm -it \
-      -v /var/run/docker.sock:/var/run/docker.sock \
-      -v  "$(pwd)":"$(pwd)" \
-      -w "$(pwd)" \
-      -v "$HOME/.dive.yaml":"$HOME/.dive.yaml" \
-      docker.io/wagoodman/dive:latest build -t <some-tag> .
+bun install -g superdive
+npm install -g superdive
+```
+
+### From source
+
+```bash
+git clone https://github.com/dukaev/superdive.git
+cd superdive
+go build -o superdive ./cmd/dive
+```
+
+## Usage
+
+To analyze a Docker image simply run superdive with an image tag/id/digest:
+```bash
+superdive <your-image-tag>
+```
+
+Or if you want to build your image then jump straight into analyzing it:
+```bash
+superdive build -t <some-tag> .
 ```
 
 Additionally you can run this in your CI pipeline to ensure you're keeping wasted space to a minimum (this skips the UI):
+```bash
+CI=true superdive <your-image>
 ```
-CI=true dive <your-image>
-```
-
-![Image](.data/demo-ci.png)
-
-**This is beta quality!** *Feel free to submit an issue if you want a new feature or find a bug :)*
 
 ## Basic Features
 
@@ -61,24 +55,25 @@ The lower left pane shows basic layer info and an experimental metric that will 
 **Quick build/analysis cycles**
 
 You can build a Docker image and do an immediate analysis with one command:
-`dive build -t some-tag .`
+```bash
+superdive build -t some-tag .
+```
 
-You only need to replace your `docker build` command with the same `dive build`
-command.
+You only need to replace your `docker build` command with the same `superdive build` command.
 
 **CI Integration**
 
-Analyze an image and get a pass/fail result based on the image efficiency and wasted space. Simply set `CI=true` in the environment when invoking any valid dive command.
+Analyze an image and get a pass/fail result based on the image efficiency and wasted space. Simply set `CI=true` in the environment when invoking any valid superdive command.
 
 **Multiple Image Sources and Container Engines Supported**
 
 With the `--source` option, you can select where to fetch the container image from:
 ```bash
-dive <your-image> --source <source>
+superdive <your-image> --source <source>
 ```
 or
 ```bash
-dive <source>://<your-image>
+superdive <source>://<your-image>
 ```
 
 With valid `source` options as such:
@@ -86,11 +81,10 @@ With valid `source` options as such:
 - `docker-archive`: A Docker Tar Archive from disk
 - `podman`: Podman engine (linux only)
 
-
 ## CI Integration
 
-When running dive with the environment variable `CI=true` then the dive UI will be bypassed and will instead analyze your docker image, giving it a pass/fail indication via return code. Currently there are three metrics supported via a `.dive-ci` file that you can put at the root of your repo:
-```
+When running superdive with the environment variable `CI=true` then the UI will be bypassed and will instead analyze your docker image, giving it a pass/fail indication via return code. Currently there are three metrics supported via a `.dive-ci` file that you can put at the root of your repo:
+```yaml
 rules:
   # If the efficiency is measured below X%, mark as failed.
   # Expressed as a ratio between 0-1.
@@ -106,3 +100,7 @@ rules:
   highestUserWastedPercent: 0.20
 ```
 You can override the CI config path with the `--ci-config` option.
+
+## License
+
+MIT

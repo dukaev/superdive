@@ -1,5 +1,5 @@
-OWNER = wagoodman
-PROJECT = dive
+OWNER = dukaev
+PROJECT = superdive
 
 TOOL_DIR = .tool
 BINNY = $(TOOL_DIR)/binny
@@ -41,7 +41,7 @@ $(TASKS): $(TASK)
 ## actual targets
 
 ci-test-windows-run:
-	dive.exe --source docker-archive .data/test-docker-image.tar --ci --ci-config .data/.dive-ci
+	superdive.exe --source docker-archive .data/test-docker-image.tar --ci --ci-config .data/.dive-ci
 
 help: $(TASK)
 	@$(TASK) -l

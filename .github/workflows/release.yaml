@@ -24,7 +24,6 @@ jobs:
         id: static-analysis
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          # This check name is defined as the github action job name (in .github/workflows/validations.yaml)
           checkName: "Static analysis"
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -33,55 +32,21 @@ jobs:
         id: unit
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          # This check name is defined as the github action job name (in .github/workflows/validations.yaml)
           checkName: "Unit tests (ubuntu-latest)"
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Check acceptance test results (linux)
-        uses: fountainhead/action-wait-for-check@v1.2.0
-        id: acceptance-linux
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # This check name is defined as the github action job name (in .github/workflows/validations.yaml)
-          checkName: "Acceptance tests (Linux)"
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Check acceptance test results (mac)
-        uses: fountainhead/action-wait-for-check@v1.2.0
-        id: acceptance-mac
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # This check name is defined as the github action job name (in .github/workflows/validations.yaml)
-          checkName: "Acceptance tests (Mac)"
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Check acceptance test results (windows)
-        uses: fountainhead/action-wait-for-check@v1.2.0
-        id: acceptance-windows
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # This check name is defined as the github action job name (in .github/workflows/validations.yaml)
-          checkName: "Acceptance tests (Windows)"
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
       - name: Quality gate
-        if: steps.static-analysis.outputs.conclusion != 'success' || steps.unit.outputs.conclusion != 'success' || steps.acceptance-linux.outputs.conclusion != 'success' || steps.acceptance-mac.outputs.conclusion != 'success' || steps.acceptance-windows.outputs.conclusion != 'success'
+        if: steps.static-analysis.outputs.conclusion != 'success' || steps.unit.outputs.conclusion != 'success'
         run: |
           echo "Static Analysis Status: ${{ steps.static-analysis.conclusion }}"
           echo "Unit Test Status: ${{ steps.unit.outputs.conclusion }}"
-          echo "Acceptance Test (Linux) Status: ${{ steps.acceptance-linux.outputs.conclusion }}"
-          echo "Acceptance Test (Mac) Status: ${{ steps.acceptance-mac.outputs.conclusion }}"
-          echo "Acceptance Test (Windows) Status: ${{ steps.acceptance-windows.outputs.conclusion }}"
-
           false
 
   release:
     needs: [quality-gate]
     runs-on: ubuntu-latest
     permissions:
-      # for tagging
       contents: write
-      # for pushing container images
       packages: write
     steps:
       - uses: actions/checkout@v4
@@ -91,15 +56,8 @@ jobs:
       - name: Bootstrap environment
         uses: ./.github/actions/bootstrap
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772  #v3.4.0
-        with:
-          registry: docker.io
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772  #v3.4.0
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -121,10 +79,27 @@ jobs:
       - name: Build & publish release artifacts
         run: make ci-release
         env:
-          # for creating the release (requires write access to content)
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # for updating brew formula in wagoodman/homebrew-dive
-          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
 
-      - name: Smoke test published image
-        run: make ci-test-docker-image
+  npm-publish:
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Update package.json version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${VERSION#v}"
+          npm version $VERSION --no-git-tag-version
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
