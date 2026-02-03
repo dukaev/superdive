@@ -34,7 +34,7 @@ func DefaultAnalysis() Analysis {
 }
 
 func (c *Analysis) DescribeFields(descriptions clio.FieldDescriptionSet) {
-	descriptions.Add(&c.ContainerEngine, "container engine to use for image analysis (supported options: 'docker' and 'podman')")
+	descriptions.Add(&c.ContainerEngine, "container engine to use for image analysis (supported options: 'docker', 'podman', and 'apple')")
 	descriptions.Add(&c.IgnoreErrors, "continue with analysis even if there are errors parsing the image archive")
 }
 
